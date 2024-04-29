@@ -1,0 +1,5 @@
+build
+*.o
+silk
+*.so
+*.sw?
