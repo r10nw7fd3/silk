@@ -102,9 +102,8 @@ int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
 			case INST_EXIT:
 				return 0;
 			case INST_CALL: {
-				size_t addr = (size_t) stack_pop(&vm->stack);
 				stack_push(&vm->stack, pc + 1);
-				pc = addr - 1;
+				pc = inst->val - 1;
 				break;
 			}
 			case INST_RET: {

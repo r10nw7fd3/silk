@@ -12,7 +12,8 @@ FOR_EACH_INSTRUCTION(ENUMERATOR)
 
 void instruction_print(Instruction* inst) {
 	printf("%s ", instruction_type_to_str(inst->type));
-	if(inst->type == INST_PUSH || inst->type == INST_SWAP)
+	if(inst->type == INST_PUSH || inst->type == INST_SWAP ||
+		inst->type == INST_CALL)
 		printf("%ld", inst->val);
 	putchar('\n');
 }
