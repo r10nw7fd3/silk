@@ -286,7 +286,7 @@ static ASTNode* parse_function(Parser* parser) {
 	return fun_node;
 }
 
-int parser_parse(Parser* parser) {
+ASTNode* parser_parse(Parser* parser) {
 	ASTNode* root = ast_create_node((ASTNode){
 		.type = NODE_SCOPE,
 		.scope = {
@@ -296,7 +296,7 @@ int parser_parse(Parser* parser) {
 	});
 
 	if(lexer_next(parser->lexer, &parser->tok))
-		return 1;
+		return NULL;
 
 	for(;;) {
 		switch(parser->tok.type) {
@@ -308,21 +308,21 @@ int parser_parse(Parser* parser) {
 				ASTNode* expr_node = parse_expr(parser);
 				if(!expr_node) {
 					ast_destroy(root);
-					return 1;
+					return NULL;
 				}
 				scope_append(root, expr_node);
 				break;
 			case TOKEN_SEMICOLON:
 				if(lexer_next(parser->lexer, &parser->tok)) {
 					ast_destroy(root);
-					return 1;
+					return NULL;
 				}
 				break;
 			case TOKEN_FUNCTION:
 				ASTNode* fun_node = parse_function(parser);
 				if(!fun_node) {
 					ast_destroy(root);
-					return 1;
+					return NULL;
 				}
 				scope_append(root, fun_node);
 				break;
@@ -330,7 +330,7 @@ int parser_parse(Parser* parser) {
 				ASTNode* var_node = parse_var(parser);
 				if(!var_node) {
 					ast_destroy(root);
-					return 1;
+					return NULL;
 				}
 				scope_append(root, var_node);
 				break;
@@ -338,15 +338,15 @@ int parser_parse(Parser* parser) {
 				printf("Error on line %d: Invalid token ", parser->tok.line);
 				lexer_print_token(&parser->tok);
 				ast_destroy(root);
-				return 1;
+				return NULL;
 		}
 	}
 
 out:
 	if(!root)
-		return 1;
-	ast_print_node(root, 1);
-	ast_destroy(root);
+		return NULL;
 
-	return 0;
+	ast_print_node(root, 1);
+
+	return root;
 }

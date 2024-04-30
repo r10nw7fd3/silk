@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "instruction.h"
+
 ASTNode* ast_create_node(ASTNode node) {
 	ASTNode* new = malloc(sizeof(ASTNode));
 	assert(new);
@@ -51,6 +53,61 @@ void ast_destroy(ASTNode* node) {
 			assert(0);
 	}
 	free(node);
+}
+
+int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNode* node) {
+	if(!*instructions)
+		*instructions = malloc(sizeof(Instruction) * capacity);
+	assert(*instructions);
+
+	switch(node->type) {
+		case NODE_SCOPE:
+			for(size_t i = 0; i < node->scope.n_nodes; ++i)
+				if(ast_compile(instructions, capacity, size, node->scope.nodes[i])) {
+					free(*instructions);
+					*instructions = NULL;
+					return 1;
+				}
+			break;
+		case NODE_EXPR:
+			if(node->expr.kind == NODE_EXPR_INT_LIT) {
+				(*instructions)[(*size)++] = (Instruction){ INST_PUSH, node->expr.num };
+			}
+			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
+				if(ast_compile(instructions, capacity, size, node->expr.lhs)) {
+					free(*instructions);
+					*instructions = NULL;
+					return 1;
+				}
+				if(ast_compile(instructions, capacity, size, node->expr.rhs)) {
+					free(*instructions);
+					*instructions = NULL;
+					return 1;
+				}
+				switch(node->expr.op) {
+					case NODE_EXPR_SUM:
+						(*instructions)[(*size)++] = (Instruction){ INST_SUM, 0 };
+						break;
+					case NODE_EXPR_SUB:
+						(*instructions)[(*size)++] = (Instruction){ INST_SUB, 0 };
+						break;
+					case NODE_EXPR_MUL:
+						(*instructions)[(*size)++] = (Instruction){ INST_MUL, 0 };
+						break;
+					case NODE_EXPR_DIV:
+						(*instructions)[(*size)++] = (Instruction){ INST_DIV, 0 };
+						break;
+					default:
+						assert(0);
+				}
+			}
+			else
+				assert(0);
+			break;
+		default:
+			assert(0);
+	}
+	return 0;
 }
 
 const char* ast_node_type_to_str(ASTNodeType type) {

@@ -4,8 +4,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "parser.h"
+#include "vm.h"
 
 static int map_file(const char* filename, char** mem, size_t* file_size) {
 	int fd = open(filename, O_RDONLY);
@@ -70,9 +73,39 @@ int silk_run(const char* js_data, const char* js_data_end) {
 	if(parser_init(&parser, &lexer))
 		return 1;
 
-	if(parser_parse(&parser))
+	ASTNode* root = parser_parse(&parser);
+	if(!root)
 		return 1;
+
+	Instruction* insts = NULL;
+	size_t size = 0;
+	if(ast_compile(&insts, 1024, &size, root)) {
+		ast_destroy(root);
+		return 1;
+	}
+
+	VM vm;
+	if(vm_init(&vm, 64, 64)) {
+		ast_destroy(root);
+		free(insts);
+	}
+
+	for(size_t i = 0; i < size; ++i)
+		instruction_print(&insts[i]);
+
+	if(vm_run(&vm, insts, size)) {
+		puts("vm_run() failed");
+		vm_deinit(&vm);
+		ast_destroy(root);
+		free(insts);
+		return 1;
+	}
+
+	vm_deinit(&vm);
+	ast_destroy(root);
+	free(insts);
 
 	return 0;
 }
+
 #endif

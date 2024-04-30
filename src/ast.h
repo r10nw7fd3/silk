@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "instruction.h"
 
 #define FOR_EACH_NODE(_) \
 	_(NODE_SCOPE) \
@@ -65,6 +66,8 @@ struct ASTNode {
 ASTNode* ast_create_node(ASTNode node);
 
 void ast_destroy(ASTNode* node);
+
+int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNode* node);
 
 const char* ast_node_type_to_str(ASTNodeType node);
 void ast_print_node(ASTNode* root, int indent);
