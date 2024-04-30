@@ -12,14 +12,9 @@ typedef struct {
 } VM_Stack;
 
 typedef struct {
-	int64_t* data;
-	size_t capacity;
-	size_t size;
-} VM_GlobalsTable;
-
-typedef struct {
-	VM_Stack stack;
-	VM_GlobalsTable table;
+	VM_Stack operand_stack;
+	VM_Stack call_stack;
+	size_t table_capacity;
 } VM;
 
 int vm_init(VM* vm, size_t stack_capacity, size_t table_capacity);
