@@ -62,7 +62,7 @@ struct ASTNode {
 	};
 };
 
-ASTNode* ast_node_create(ASTNode node);
+ASTNode* ast_create_node(ASTNode node);
 
 void ast_destroy(ASTNode* node);
 

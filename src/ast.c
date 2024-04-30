@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-ASTNode* ast_node_create(ASTNode node) {
+ASTNode* ast_create_node(ASTNode node) {
 	ASTNode* new = malloc(sizeof(ASTNode));
 	assert(new);
 	*new = node;

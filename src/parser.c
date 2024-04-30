@@ -57,7 +57,7 @@ static int token_to_bin_op(TokenType type) {
 }
 
 static ASTNode* parse_expr(Parser* parser) {
-	ASTNode* expr_node = ast_node_create((ASTNode){
+	ASTNode* expr_node = ast_create_node((ASTNode){
 		.type = NODE_EXPR,
 	});
 
@@ -113,7 +113,7 @@ static ASTNode* parse_expr(Parser* parser) {
 			ast_destroy(lhs);
 			return NULL;
 		}
-		expr_node = ast_node_create((ASTNode){
+		expr_node = ast_create_node((ASTNode){
 			.type = NODE_EXPR,
 			.expr = {
 				.kind = NODE_EXPR_BIN_OP,
@@ -131,7 +131,7 @@ static ASTNode* parse_return(Parser* parser) {
 	if(lexer_next(parser->lexer, &parser->tok))
 		return NULL;
 
-	ASTNode* ret_node = ast_node_create((ASTNode){
+	ASTNode* ret_node = ast_create_node((ASTNode){
 		.type = NODE_RET_STATEMENT,
 		.ret = {
 			NULL
@@ -177,7 +177,7 @@ static ASTNode* parse_var(Parser* parser) {
 		return NULL;
 	}
 
-	ASTNode* var_node = ast_node_create((ASTNode){
+	ASTNode* var_node = ast_create_node((ASTNode){
 		.type = NODE_VAR_STATEMENT,
 		.var = {
 			.identifier = identifier,
@@ -188,7 +188,7 @@ static ASTNode* parse_var(Parser* parser) {
 }
 
 static ASTNode* parse_scope(Parser* parser) {
-	ASTNode* scope_node = ast_node_create((ASTNode){
+	ASTNode* scope_node = ast_create_node((ASTNode){
 		.type = NODE_SCOPE,
 		.scope = {
 			0,
@@ -276,7 +276,7 @@ static ASTNode* parse_function(Parser* parser) {
 		return NULL;
 	}
 
-	ASTNode* fun_node = ast_node_create((ASTNode){
+	ASTNode* fun_node = ast_create_node((ASTNode){
 		.type = NODE_FUN_STATEMENT,
 		.fun = {
 			.identifier = identifier,
@@ -287,7 +287,7 @@ static ASTNode* parse_function(Parser* parser) {
 }
 
 int parser_parse(Parser* parser) {
-	ASTNode* root = ast_node_create((ASTNode){
+	ASTNode* root = ast_create_node((ASTNode){
 		.type = NODE_SCOPE,
 		.scope = {
 			0,
