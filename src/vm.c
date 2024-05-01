@@ -12,6 +12,7 @@ typedef struct {
 } VM_CallFrame;
 
 static inline int stack_init(VM_Stack* stack, size_t stack_capacity) {
+	assert(sizeof(int64_t) >= sizeof(void*));
 	stack->data = malloc(sizeof(int64_t) * stack_capacity);
 	if(!stack->data)
 		return 1;
@@ -93,13 +94,13 @@ static inline void cf_destroy(VM_CallFrame* cf) {
 
 int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
 	VM_CallFrame* global_cf = cf_create(vm->table_capacity);
-	stack_push(&vm->call_stack, (int64_t) (intptr_t) global_cf);
+	stack_push(&vm->call_stack, (int64_t) global_cf);
 
 	int64_t val1;
 	int64_t val2;
 	for(size_t pc = 0; pc < inst_size; ++pc) {
 		Instruction* inst = &instructions[pc];
-		VM_CallFrame* current_cf = (VM_CallFrame*) (intptr_t) stack_peek(&vm->call_stack);
+		VM_CallFrame* current_cf = (VM_CallFrame*) stack_peek(&vm->call_stack);
 		switch(inst->type) {
 			case INST_PUSH:
 				stack_push(&vm->operand_stack, inst->val);
@@ -127,13 +128,13 @@ int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
 				goto quit;
 			case INST_CALL: {
 				VM_CallFrame* new_cf = cf_create(vm->table_capacity);
-				stack_push(&vm->call_stack, (int64_t) (intptr_t) new_cf);
+				stack_push(&vm->call_stack, (int64_t) new_cf);
 				stack_push(&vm->operand_stack, pc + 1);
 				pc = inst->val - 1;
 				break;
 			}
 			case INST_RET: {
-				VM_CallFrame* old_cf = (VM_CallFrame*) (intptr_t) stack_pop(&vm->call_stack);
+				VM_CallFrame* old_cf = (VM_CallFrame*) stack_pop(&vm->call_stack);
 				cf_destroy(old_cf);
 				size_t ret_addr = (size_t) stack_pop(&vm->operand_stack);
 				pc = ret_addr - 1;
@@ -165,7 +166,7 @@ int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
 	}
 quit:
 	while(vm->call_stack.sp) {
-		VM_CallFrame* cf = (VM_CallFrame*) (intptr_t) stack_pop(&vm->call_stack);
+		VM_CallFrame* cf = (VM_CallFrame*) stack_pop(&vm->call_stack);
 		cf_destroy(cf);
 	}
 	return 0;
