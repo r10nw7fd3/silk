@@ -60,6 +60,13 @@ int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNo
 		*instructions = malloc(sizeof(Instruction) * capacity);
 	assert(*instructions);
 
+#define APPEND(inst) \
+	do { \
+		assert(*size < capacity); \
+		(*instructions)[(*size)++] = inst; \
+	} \
+	while(0)
+
 	switch(node->type) {
 		case NODE_SCOPE:
 			for(size_t i = 0; i < node->scope.n_nodes; ++i)
@@ -71,7 +78,7 @@ int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNo
 			break;
 		case NODE_EXPR:
 			if(node->expr.kind == NODE_EXPR_INT_LIT) {
-				(*instructions)[(*size)++] = (Instruction){ INST_PUSH, node->expr.num };
+				APPEND(((Instruction){ INST_PUSH, node->expr.num }));
 			}
 			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
 				if(ast_compile(instructions, capacity, size, node->expr.lhs)) {
@@ -86,16 +93,16 @@ int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNo
 				}
 				switch(node->expr.op) {
 					case NODE_EXPR_SUM:
-						(*instructions)[(*size)++] = (Instruction){ INST_SUM, 0 };
+						APPEND(((Instruction){ INST_SUM, 0 }));
 						break;
 					case NODE_EXPR_SUB:
-						(*instructions)[(*size)++] = (Instruction){ INST_SUB, 0 };
+						APPEND(((Instruction){ INST_SUB, 0 }));
 						break;
 					case NODE_EXPR_MUL:
-						(*instructions)[(*size)++] = (Instruction){ INST_MUL, 0 };
+						APPEND(((Instruction){ INST_MUL, 0 }));
 						break;
 					case NODE_EXPR_DIV:
-						(*instructions)[(*size)++] = (Instruction){ INST_DIV, 0 };
+						APPEND(((Instruction){ INST_DIV, 0 }));
 						break;
 					default:
 						assert(0);
