@@ -1,9 +1,22 @@
 #include "ast.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
-
 #include "instruction.h"
+
+typedef struct {
+	ASTNode* node;
+	size_t start_addr;
+	int64_t ra_index;
+} FunctionCtx;
+VECTOR_DEFINE(FunctionCtx);
+
+typedef struct {
+	size_t code_pos;
+	const char* identifier;
+} BackPatch;
+VECTOR_DEFINE(BackPatch);
 
 ASTNode* ast_create_node(ASTNode node) {
 	ASTNode* new = malloc(sizeof(ASTNode));
@@ -55,65 +68,106 @@ void ast_destroy(ASTNode* node) {
 	free(node);
 }
 
-int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNode* node) {
-	if(!*instructions)
-		*instructions = malloc(sizeof(Instruction) * capacity);
-	assert(*instructions);
+static inline FunctionCtx* lookup_fun_ctx(Vector_FunctionCtx* funcs, ASTNode* node) {
+	for(size_t i = 0; i < funcs->size; ++i)
+		if(funcs->data[i].node == node)
+			return &funcs->data[i];
+	assert(0);
+}
 
-#define APPEND(inst) \
-	do { \
-		assert(*size < capacity); \
-		(*instructions)[(*size)++] = inst; \
-	} \
-	while(0)
+static inline FunctionCtx* lookup_fun_ctx_by_name(Vector_FunctionCtx* funcs, const char* name) {
+	for(size_t i = 0; i < funcs->size; ++i)
+		if(!strcmp(funcs->data[i].node->fun.identifier, name))
+			return &funcs->data[i];
+	assert(0);
+}
 
+static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
+	Vector_FunctionCtx* functions, Vector_BackPatch* bpatches) {
 	switch(node->type) {
 		case NODE_SCOPE:
 			for(size_t i = 0; i < node->scope.n_nodes; ++i)
-				if(ast_compile(instructions, capacity, size, node->scope.nodes[i])) {
-					free(*instructions);
-					*instructions = NULL;
+				if(compile_recur(instructions, node->scope.nodes[i], functions, bpatches))
 					return 1;
-				}
 			break;
 		case NODE_EXPR:
-			if(node->expr.kind == NODE_EXPR_INT_LIT) {
-				APPEND(((Instruction){ INST_PUSH, node->expr.num }));
-			}
+			if(node->expr.kind == NODE_EXPR_INT_LIT)
+				vector_aappend(*instructions, ((Instruction){ INST_PUSH, node->expr.num }));
 			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
-				if(ast_compile(instructions, capacity, size, node->expr.lhs)) {
-					free(*instructions);
-					*instructions = NULL;
+				if(compile_recur(instructions, node->expr.lhs, functions, bpatches))
 					return 1;
-				}
-				if(ast_compile(instructions, capacity, size, node->expr.rhs)) {
-					free(*instructions);
-					*instructions = NULL;
+				if(compile_recur(instructions, node->expr.rhs, functions, bpatches))
 					return 1;
-				}
 				switch(node->expr.op) {
 					case NODE_EXPR_SUM:
-						APPEND(((Instruction){ INST_SUM, 0 }));
+						vector_aappend(*instructions, ((Instruction){ INST_SUM, 0 }));
 						break;
 					case NODE_EXPR_SUB:
-						APPEND(((Instruction){ INST_SUB, 0 }));
+						vector_aappend(*instructions, ((Instruction){ INST_SUB, 0 }));
 						break;
 					case NODE_EXPR_MUL:
-						APPEND(((Instruction){ INST_MUL, 0 }));
+						vector_aappend(*instructions, ((Instruction){ INST_MUL, 0 }));
 						break;
 					case NODE_EXPR_DIV:
-						APPEND(((Instruction){ INST_DIV, 0 }));
+						vector_aappend(*instructions, ((Instruction){ INST_DIV, 0 }));
 						break;
 					default:
 						assert(0);
 				}
 			}
+			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
+				vector_aappend(*bpatches, ((BackPatch){ instructions->size, node->expr.data }));
+				vector_aappend(*instructions, ((Instruction){ INST_CALL, 0 }));
+			}
 			else
 				assert(0);
+			break;
+		case NODE_RET_STATEMENT:
+			compile_recur(instructions, node->ret.expr, functions, bpatches);
+			vector_aappend(*instructions, ((Instruction){ INST_LOAD, 0 }));
+			vector_aappend(*instructions, ((Instruction){ INST_RET, 0 }));
+			break;
+		case NODE_FUN_STATEMENT:
+			vector_aappend(*instructions, ((Instruction){ INST_STORE, 0 }));
+			FunctionCtx* fun = lookup_fun_ctx(functions, node);
+			fun->start_addr = instructions->size - 1;
+			compile_recur(instructions, node->fun.body, functions, bpatches);
 			break;
 		default:
 			assert(0);
 	}
+	return 0;
+}
+
+int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
+	Vector_FunctionCtx functions;
+	vector_ainit(functions, 64);
+
+	Vector_BackPatch bpatches;
+	vector_ainit(bpatches, 64);
+
+	assert(node->type == NODE_SCOPE);
+	for(size_t i = 0; i < node->scope.n_nodes; ++i) {
+		if(node->scope.nodes[i]->type == NODE_FUN_STATEMENT) {
+			vector_aappend(functions, ((FunctionCtx){ node->scope.nodes[i], 0, 0 }));
+			continue;
+		}
+		compile_recur(instructions, node->scope.nodes[i], &functions, &bpatches);
+	}
+
+	vector_aappend(*instructions, ((Instruction){ INST_EXIT, 0 }));
+
+	for(size_t i = 0; i < functions.size; ++i)
+		compile_recur(instructions, functions.data[i].node, &functions, &bpatches);
+
+	for(size_t i = 0; i < bpatches.size; ++i) {
+		FunctionCtx* ctx = lookup_fun_ctx_by_name(&functions, bpatches.data[i].identifier);
+		instructions->data[bpatches.data[i].code_pos].val = ctx->start_addr;
+	}
+
+	vector_deinit(functions);
+	vector_deinit(bpatches);
+
 	return 0;
 }
 

@@ -77,9 +77,9 @@ int silk_run(const char* js_data, const char* js_data_end) {
 	if(!root)
 		return 1;
 
-	Instruction* insts = NULL;
-	size_t size = 0;
-	if(ast_compile(&insts, 1024, &size, root)) {
+	Vector_Instruction insts;
+	vector_ainit(insts, 64);
+	if(ast_compile(&insts, root)) {
 		ast_destroy(root);
 		return 1;
 	}
@@ -87,23 +87,25 @@ int silk_run(const char* js_data, const char* js_data_end) {
 	VM vm;
 	if(vm_init(&vm, 64, 64)) {
 		ast_destroy(root);
-		free(insts);
+		vector_deinit(insts);
 	}
 
-	for(size_t i = 0; i < size; ++i)
-		instruction_print(&insts[i]);
+	for(size_t i = 0; i < insts.size; ++i)
+		instruction_print(&insts.data[i]);
 
-	if(vm_run(&vm, insts, size)) {
+	if(vm_run(&vm, insts.data, insts.size)) {
 		puts("vm_run() failed");
 		vm_deinit(&vm);
 		ast_destroy(root);
-		free(insts);
+		vector_deinit(insts);
 		return 1;
 	}
 
+	printf("Value on top of the stack: %ld\n", vm.operand_stack.data[vm.operand_stack.sp - 1]);
+
 	vm_deinit(&vm);
 	ast_destroy(root);
-	free(insts);
+	vector_deinit(insts);
 
 	return 0;
 }

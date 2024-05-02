@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "instruction.h"
+#include "vector.h"
 
 #define FOR_EACH_NODE(_) \
 	_(NODE_SCOPE) \
@@ -63,11 +64,16 @@ struct ASTNode {
 	};
 };
 
+#ifndef VECTOR_DEFINED_Instruction
+#define VECTOR_DEFINED_Instruction
+VECTOR_DEFINE(Instruction);
+#endif
+
 ASTNode* ast_create_node(ASTNode node);
 
 void ast_destroy(ASTNode* node);
 
-int ast_compile(Instruction** instructions, size_t capacity, size_t* size, ASTNode* node);
+int ast_compile(Vector_Instruction* instructions, ASTNode* node);
 
 const char* ast_node_type_to_str(ASTNodeType node);
 void ast_print_node(ASTNode* root, int indent);
