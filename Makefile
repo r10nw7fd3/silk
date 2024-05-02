@@ -1,5 +1,5 @@
 OUT:=libsilk.so
-CFLAGS:=-Wall -Wextra -std=c99 -O2 -fPIC -fvisibility=hidden -g
+CFLAGS:=-Wall -Wextra -Wno-string-plus-int -std=c99 -O2 -fPIC -fvisibility=hidden -g
 PREFIX:=/usr/local
 
 SRC:=$(wildcard src/*.c)

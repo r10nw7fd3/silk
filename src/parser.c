@@ -219,7 +219,7 @@ static ASTNode* parse_scope(Parser* parser) {
 				return scope_node;
 			case TOKEN_IDENTIFIER:
 			case TOKEN_INT_LITERAL:
-			case TOKEN_STR_LITERAL:
+			case TOKEN_STR_LITERAL: {
 				ASTNode* expr_node = parse_expr(parser);
 				if(!expr_node) {
 					ast_destroy(scope_node);
@@ -227,7 +227,8 @@ static ASTNode* parse_scope(Parser* parser) {
 				}
 				scope_append(scope_node, expr_node);
 				break;
-			case TOKEN_VAR:
+			}
+			case TOKEN_VAR: {
 				ASTNode* var_node = parse_var(parser);
 				if(!var_node) {
 					ast_destroy(scope_node);
@@ -235,6 +236,7 @@ static ASTNode* parse_scope(Parser* parser) {
 				}
 				scope_append(scope_node, var_node);
 				break;
+			}
 			case TOKEN_SEMICOLON:
 				if(lexer_next(parser->lexer, &parser->tok)) {
 					ast_destroy(scope_node);
@@ -304,7 +306,7 @@ ASTNode* parser_parse(Parser* parser) {
 				goto out;
 			case TOKEN_IDENTIFIER:
 			case TOKEN_INT_LITERAL:
-			case TOKEN_STR_LITERAL:
+			case TOKEN_STR_LITERAL: {
 				ASTNode* expr_node = parse_expr(parser);
 				if(!expr_node) {
 					ast_destroy(root);
@@ -312,13 +314,14 @@ ASTNode* parser_parse(Parser* parser) {
 				}
 				scope_append(root, expr_node);
 				break;
+			}
 			case TOKEN_SEMICOLON:
 				if(lexer_next(parser->lexer, &parser->tok)) {
 					ast_destroy(root);
 					return NULL;
 				}
 				break;
-			case TOKEN_FUNCTION:
+			case TOKEN_FUNCTION: {
 				ASTNode* fun_node = parse_function(parser);
 				if(!fun_node) {
 					ast_destroy(root);
@@ -326,7 +329,8 @@ ASTNode* parser_parse(Parser* parser) {
 				}
 				scope_append(root, fun_node);
 				break;
-			case TOKEN_VAR:
+			}
+			case TOKEN_VAR: {
 				ASTNode* var_node = parse_var(parser);
 				if(!var_node) {
 					ast_destroy(root);
@@ -334,6 +338,7 @@ ASTNode* parser_parse(Parser* parser) {
 				}
 				scope_append(root, var_node);
 				break;
+			}
 			default:
 				printf("Error on line %d: Invalid token ", parser->tok.line);
 				lexer_print_token(&parser->tok);
