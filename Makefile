@@ -5,6 +5,10 @@ PREFIX:=/usr/local
 SRC:=$(wildcard src/*.c)
 OBJ:=$(subst src/,build/,$(SRC:.c=.o))
 
+_:=$(if $(filter clean,$(MAKECMDGOALS)), \
+	$(info rm -rf build $(OUT) silk) \
+	$(shell rm -rf build $(OUT) silk))
+
 all: $(OUT) silk
 
 $(OUT): $(OBJ)
@@ -22,7 +26,7 @@ build/%.o: src/%.c
 	$(CC) $(CFLAGS) -Iinclude -c -o $@ $<
 
 clean:
-	rm -rf build $(OUT) silk
+	@true
 
 install: $(OUT) silk
 	cp $(OUT) $(PREFIX)/lib
