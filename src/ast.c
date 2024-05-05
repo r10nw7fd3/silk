@@ -157,17 +157,17 @@ expr_out:
 				return 1;
 			vector_aappend(*instructions, ((Instruction){ INST_RET, 0 }));
 			break;
-		case NODE_FUN_STATEMENT:
+		case NODE_FUN_STATEMENT: {
 			FunctionCtx* fun = lookup_fun_ctx(functions, node);
 			fun->start_addr = instructions->size;
 			if(compile_recur(instructions, node->fun.body, functions, bpatches, global_vars, vars))
 				return 1;
 			break;
+		}
 		case NODE_VAR_STATEMENT: {
 			if(compile_recur(instructions, node->var.expr, functions, bpatches, global_vars, vars))
 				return 1;
 			int64_t index = is_global ? global_vars->size : vars->size;
-			// TODO: Investigate why vector_aappend(ternary) does not work
 			Vector_Variable* workaround = is_global ? global_vars : vars;
 			vector_aappend(*workaround, ((Variable){ node->var.identifier, index }));
 			vector_aappend(*instructions, ((Instruction){ is_global ? INST_STORE_GLOBAL : INST_STORE, index }));
