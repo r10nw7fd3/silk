@@ -9,6 +9,7 @@ typedef struct {
 
 typedef struct {
 	VM_LocalsTable locals;
+	size_t ret_addr;
 } VM_CallFrame;
 
 static inline int stack_init(VM_Stack* stack, size_t stack_capacity) {
@@ -81,9 +82,10 @@ void vm_deinit(VM* vm) {
 	stack_deinit(&vm->call_stack);
 }
 
-static inline VM_CallFrame* cf_create(size_t table_capacity) {
+static inline VM_CallFrame* cf_create(size_t table_capacity, size_t ret_addr) {
 	VM_CallFrame* cf = malloc(sizeof(VM_CallFrame));
 	assert(!cf || !table_init(&cf->locals, table_capacity));
+	cf->ret_addr = ret_addr;
 	return cf;
 }
 
@@ -93,7 +95,7 @@ static inline void cf_destroy(VM_CallFrame* cf) {
 }
 
 int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
-	VM_CallFrame* global_cf = cf_create(vm->table_capacity);
+	VM_CallFrame* global_cf = cf_create(vm->table_capacity, 0);
 	stack_push(&vm->call_stack, (int64_t) global_cf);
 
 	int64_t val1;
@@ -127,17 +129,15 @@ int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
 			case INST_EXIT:
 				goto quit;
 			case INST_CALL: {
-				VM_CallFrame* new_cf = cf_create(vm->table_capacity);
+				VM_CallFrame* new_cf = cf_create(vm->table_capacity, pc + 1);
 				stack_push(&vm->call_stack, (int64_t) new_cf);
-				stack_push(&vm->operand_stack, pc + 1);
 				pc = inst->val - 1;
 				break;
 			}
 			case INST_RET: {
 				VM_CallFrame* old_cf = (VM_CallFrame*) stack_pop(&vm->call_stack);
+				pc = old_cf->ret_addr - 1;
 				cf_destroy(old_cf);
-				size_t ret_addr = (size_t) stack_pop(&vm->operand_stack);
-				pc = ret_addr - 1;
 				break;
 			}
 			case INST_SUM:

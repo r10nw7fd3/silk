@@ -124,13 +124,11 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 			break;
 		case NODE_RET_STATEMENT:
 			compile_recur(instructions, node->ret.expr, functions, bpatches);
-			vector_aappend(*instructions, ((Instruction){ INST_LOAD, 0 }));
 			vector_aappend(*instructions, ((Instruction){ INST_RET, 0 }));
 			break;
 		case NODE_FUN_STATEMENT:
-			vector_aappend(*instructions, ((Instruction){ INST_STORE, 0 }));
 			FunctionCtx* fun = lookup_fun_ctx(functions, node);
-			fun->start_addr = instructions->size - 1;
+			fun->start_addr = instructions->size;
 			compile_recur(instructions, node->fun.body, functions, bpatches);
 			break;
 		default:
