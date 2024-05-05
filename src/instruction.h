@@ -9,6 +9,8 @@
 	_(INST_SWAP) \
 	_(INST_LOAD) \
 	_(INST_STORE) \
+	_(INST_LOAD_GLOBAL) \
+	_(INST_STORE_GLOBAL) \
 	_(INST_EXIT) \
 	_(INST_CALL) \
 	_(INST_RET) \

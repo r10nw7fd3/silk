@@ -14,7 +14,8 @@ void instruction_print(Instruction* inst) {
 	printf("%s ", instruction_type_to_str(inst->type));
 	if(inst->type == INST_PUSH || inst->type == INST_SWAP ||
 		inst->type == INST_CALL || inst->type == INST_LOAD ||
-		inst->type == INST_STORE)
+		inst->type == INST_STORE || inst->type == INST_LOAD_GLOBAL ||
+		inst->type == INST_STORE_GLOBAL)
 		printf("%ld", inst->val);
 	putchar('\n');
 }

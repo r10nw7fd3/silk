@@ -1,10 +1,11 @@
-var global = 8 / 2;
+var overshadow = 16 / 2;
+bar();
 
 function foo() {
-	var local = "Example string";
-	return 1 + 2;
+	var overshadow = 1 + 2;
+	return overshadow * 2;
 }
 
 function bar() {
-	return global - foo();
+	return overshadow - foo();
 }

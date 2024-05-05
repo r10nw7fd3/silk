@@ -119,13 +119,23 @@ int vm_run(VM* vm, Instruction* instructions, size_t inst_size) {
 				break;
 			}
 			case INST_LOAD:
-				val1 = table_get(&current_cf->locals, inst->val);
+			case INST_LOAD_GLOBAL: {
+				VM_LocalsTable* locals = inst->type == INST_LOAD
+					? &current_cf->locals
+					: &global_cf->locals;
+				val1 = table_get(locals, inst->val);
 				stack_push(&vm->operand_stack, val1);
 				break;
+			}
 			case INST_STORE:
+			case INST_STORE_GLOBAL: {
+				VM_LocalsTable* locals = inst->type == INST_STORE
+					? &current_cf->locals
+					: &global_cf->locals;
 				val1 = stack_pop(&vm->operand_stack);
-				table_put(&current_cf->locals, inst->val, val1);
+				table_put(locals, inst->val, val1);
 				break;
+			}
 			case INST_EXIT:
 				goto quit;
 			case INST_CALL: {
