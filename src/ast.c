@@ -88,6 +88,19 @@ static inline FunctionCtx* lookup_fun_ctx_by_name(Vector_FunctionCtx* funcs, con
 	assert(0);
 }
 
+static int is_a_redecl(const char* iden, Vector_Variable* global_vars, Vector_Variable* vars) {
+	if(!vars) {
+		for(size_t i = 0; i < global_vars->size; ++i)
+			if(!strcmp(global_vars->data[i].identifier, iden))
+				return 1;
+		return 0;
+	}
+	for(size_t i = 0; i < vars->size; ++i)
+		if(!strcmp(vars->data[i].identifier, iden))
+			return 1;
+	return 0;
+}
+
 static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 	Vector_FunctionCtx* functions, Vector_BackPatch* bpatches, Vector_Variable* global_vars,
 	Vector_Variable* vars) {
@@ -165,6 +178,8 @@ expr_out:
 			break;
 		}
 		case NODE_VAR_STATEMENT: {
+			if(is_a_redecl(node->var.identifier, global_vars, vars))
+				return 1;
 			if(compile_recur(instructions, node->var.expr, functions, bpatches, global_vars, vars))
 				return 1;
 			int64_t index = is_global ? global_vars->size : vars->size;
