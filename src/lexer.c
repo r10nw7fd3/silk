@@ -145,3 +145,13 @@ void lexer_print_token(Token* tok) {
 		printf("%s", tok->data);
 	putchar('\n');
 }
+
+void lexer_destroy_token(Token* tok) {
+	switch(tok->type) {
+		case TOKEN_STR_LITERAL:
+		case TOKEN_IDENTIFIER:
+			free(tok->data);
+			tok->data = NULL;
+		default:
+	}
+}

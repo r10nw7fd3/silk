@@ -352,8 +352,10 @@ ASTNode* parser_parse(Parser* parser) {
 		}
 	});
 
-	if(lexer_next(parser->lexer, &parser->tok))
+	if(lexer_next(parser->lexer, &parser->tok)) {
+		ast_destroy(root);
 		return NULL;
+	}
 
 	for(;;) {
 		switch(parser->tok.type) {
@@ -365,7 +367,8 @@ ASTNode* parser_parse(Parser* parser) {
 				ASTNode* expr_node = parse_expr(parser);
 				if(!expr_node) {
 					ast_destroy(root);
-					return NULL;
+					root = NULL;
+					goto out;
 				}
 				scope_append(root, expr_node);
 				break;
@@ -373,14 +376,16 @@ ASTNode* parser_parse(Parser* parser) {
 			case TOKEN_SEMICOLON:
 				if(lexer_next(parser->lexer, &parser->tok)) {
 					ast_destroy(root);
-					return NULL;
+					root = NULL;
+					goto out;
 				}
 				break;
 			case TOKEN_FUNCTION: {
 				ASTNode* fun_node = parse_function(parser);
 				if(!fun_node) {
 					ast_destroy(root);
-					return NULL;
+					root = NULL;
+					goto out;
 				}
 				scope_append(root, fun_node);
 				break;
@@ -389,7 +394,8 @@ ASTNode* parser_parse(Parser* parser) {
 				ASTNode* var_node = parse_var(parser);
 				if(!var_node) {
 					ast_destroy(root);
-					return NULL;
+					root = NULL;
+					goto out;
 				}
 				scope_append(root, var_node);
 				break;
@@ -397,13 +403,16 @@ ASTNode* parser_parse(Parser* parser) {
 			default:
 				invalid(parser);
 				ast_destroy(root);
-				return NULL;
+				root = NULL;
+				goto out;
 		}
 	}
 
 out:
-	if(!root)
+	if(!root) {
+		lexer_destroy_token(&parser->tok);
 		return NULL;
+	}
 
 	if(parser->lexer->ctx->print_ast)
 		ast_print_node(root, 1);

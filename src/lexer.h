@@ -51,5 +51,6 @@ int lexer_init(Lexer* lexer, Silk_Ctx* ctx, const char* data, const char* end);
 int lexer_next(Lexer* lexer, Token* tok);
 const char* lexer_token_type_to_str(TokenType type);
 void lexer_print_token(Token* tok);
+void lexer_destroy_token(Token* tok);
 
 #endif
