@@ -18,7 +18,8 @@ static inline int is_valid_identifier(char c) {
 		c != '{' && c != '}' &&
 		c != ';' &&
 		c != '+' &&
-		c != '*' && c != '/';
+		c != '*' && c != '/' &&
+		c != '.' && c != ',';
 }
 
 static inline char* copy_str_to_heap(const char* str) {
@@ -58,6 +59,7 @@ again:
 	SINGLE_CHAR_TOKEN('{', TOKEN_CURLY_OPEN);
 	SINGLE_CHAR_TOKEN('}', TOKEN_CURLY_CLOSE);
 	SINGLE_CHAR_TOKEN(';', TOKEN_SEMICOLON);
+	SINGLE_CHAR_TOKEN(',', TOKEN_COMMA);
 	SINGLE_CHAR_TOKEN('+', TOKEN_PLUS);
 	SINGLE_CHAR_TOKEN('-', TOKEN_MINUS);
 	SINGLE_CHAR_TOKEN('*', TOKEN_ASTERISK);

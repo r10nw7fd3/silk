@@ -19,7 +19,19 @@ typedef enum {
 #undef ENUMERATOR
 } ASTNodeType;
 
+typedef char* str_t;
+#ifndef VECTOR_DEFINED_str_t
+#define VECTOR_DEFINED_str_t
+VECTOR_DEFINE(str_t);
+#endif
+
 typedef struct ASTNode ASTNode;
+typedef ASTNode* ASTNode_ptr_t;
+#ifndef VECTOR_DEFINED_ASTNode_ptr_t
+#define VECTOR_DEFINED_ASTNode_ptr_t
+VECTOR_DEFINE(ASTNode_ptr_t);
+#endif
+
 struct ASTNode {
 	ASTNodeType type;
 	union {
@@ -48,10 +60,12 @@ struct ASTNode {
 					ASTNode* lhs;
 					ASTNode* rhs;
 				};
+				Vector_ASTNode_ptr_t fun_call_args;
 			};
 		} expr;
 		struct {
 			char* identifier;
+			Vector_str_t arguments;
 			ASTNode* body;
 		} fun;
 		struct {

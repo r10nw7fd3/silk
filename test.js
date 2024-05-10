@@ -1,11 +1,11 @@
-var overshadow = 16 / 2;
+var foo = 16 / 2;
 bar();
 
-function foo() {
-	var overshadow = 1 + 2;
-	return overshadow * 2;
+function multiply(val1, val2) {
+	var something = val1 * val2;
+	return something - 1;
 }
 
 function bar() {
-	return overshadow - foo();
+	return foo - multiply(2, 3);
 }

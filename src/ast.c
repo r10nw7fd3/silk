@@ -43,6 +43,9 @@ void ast_destroy(ASTNode* node) {
 			break;
 		case NODE_FUN_STATEMENT:
 			free(node->fun.identifier);
+			for(size_t i = 0; i < node->fun.arguments.size; ++i)
+				free(node->fun.arguments.data[i]);
+			vector_deinit(node->fun.arguments);
 			ast_destroy(node->fun.body);
 			break;
 		case NODE_RET_STATEMENT:
@@ -57,10 +60,15 @@ void ast_destroy(ASTNode* node) {
 			}
 			else if(
 				node->expr.kind == NODE_EXPR_VAR_LOOKUP ||
-				node->expr.kind == NODE_EXPR_FUN_CALL ||
 				node->expr.kind == NODE_EXPR_STR_LIT
 			)
 				free(node->expr.data);
+			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
+				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
+					ast_destroy(node->expr.fun_call_args.data[i]);
+				vector_deinit(node->expr.fun_call_args);
+				free(node->expr.data);
+			}
 			else
 				assert(0);
 			break;
@@ -103,14 +111,18 @@ static int is_a_redecl(const char* iden, Vector_Variable* global_vars, Vector_Va
 
 static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 	Vector_FunctionCtx* functions, Vector_BackPatch* bpatches, Vector_Variable* global_vars,
-	Vector_Variable* vars) {
+	Vector_Variable* vars, Vector_Variable* scope_merge_vars) {
 	int is_global = vars == NULL;
 	switch(node->type) {
-		case NODE_SCOPE: {
+		case NODE_SCOPE: { // TODO: Rethink how scopes should be implemented
 			Vector_Variable scope_vars;
 			vector_ainit(scope_vars, 64);
+			if(scope_merge_vars) {
+				memcpy(scope_vars.data, scope_merge_vars->data, sizeof(Variable) * scope_merge_vars->size);
+				scope_vars.size = scope_merge_vars->size;
+			}
 			for(size_t i = 0; i < node->scope.n_nodes; ++i)
-				if(compile_recur(instructions, node->scope.nodes[i], functions, bpatches, global_vars, &scope_vars)) {
+				if(compile_recur(instructions, node->scope.nodes[i], functions, bpatches, global_vars, &scope_vars, NULL)) {
 					vector_deinit(scope_vars);
 					return 1;
 				}
@@ -121,9 +133,9 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 			if(node->expr.kind == NODE_EXPR_INT_LIT)
 				vector_aappend(*instructions, ((Instruction){ INST_PUSH, node->expr.num }));
 			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
-				if(compile_recur(instructions, node->expr.lhs, functions, bpatches, global_vars, vars))
+				if(compile_recur(instructions, node->expr.lhs, functions, bpatches, global_vars, vars, NULL))
 					return 1;
-				if(compile_recur(instructions, node->expr.rhs, functions, bpatches, global_vars, vars))
+				if(compile_recur(instructions, node->expr.rhs, functions, bpatches, global_vars, vars, NULL))
 					return 1;
 				switch(node->expr.op) {
 					case NODE_EXPR_SUM:
@@ -143,6 +155,10 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 				}
 			}
 			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
+				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
+					if(compile_recur(instructions, node->expr.fun_call_args.data[i], functions, bpatches, global_vars, vars, NULL))
+					return 1;
+
 				vector_aappend(*bpatches, ((BackPatch){ node->expr.data, instructions->size }));
 				vector_aappend(*instructions, ((Instruction){ INST_CALL, 0 }));
 			}
@@ -166,21 +182,37 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 expr_out:
 			break;
 		case NODE_RET_STATEMENT:
-			if(compile_recur(instructions, node->ret.expr, functions, bpatches, global_vars, vars))
+			if(compile_recur(instructions, node->ret.expr, functions, bpatches, global_vars, vars, NULL))
 				return 1;
 			vector_aappend(*instructions, ((Instruction){ INST_RET, 0 }));
 			break;
 		case NODE_FUN_STATEMENT: {
 			FunctionCtx* fun = lookup_fun_ctx(functions, node);
 			fun->start_addr = instructions->size;
-			if(compile_recur(instructions, node->fun.body, functions, bpatches, global_vars, vars))
+			Vector_Variable* merge_or_null = NULL;
+			Vector_Variable merge;
+			if(node->fun.arguments.size) {
+				vector_ainit(merge, 64);
+				for(size_t i = 0; i < node->fun.arguments.size; ++i) {
+					vector_aappend(merge, ((Variable){ node->fun.arguments.data[i], i }));
+					vector_aappend(*instructions, ((Instruction){ INST_STORE, i }));
+				}
+
+				merge_or_null = &merge;
+			}
+			if(compile_recur(instructions, node->fun.body, functions, bpatches, global_vars, vars, merge_or_null)) {
+				if(node->fun.arguments.size)
+					vector_deinit(*merge_or_null);
 				return 1;
+			}
+			if(node->fun.arguments.size)
+				vector_deinit(*merge_or_null);
 			break;
 		}
 		case NODE_VAR_STATEMENT: {
 			if(is_a_redecl(node->var.identifier, global_vars, vars))
 				return 1;
-			if(compile_recur(instructions, node->var.expr, functions, bpatches, global_vars, vars))
+			if(compile_recur(instructions, node->var.expr, functions, bpatches, global_vars, vars, NULL))
 				return 1;
 			int64_t index = is_global ? global_vars->size : vars->size;
 			Vector_Variable* workaround = is_global ? global_vars : vars;
@@ -212,7 +244,7 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 			vector_aappend(functions, ((FunctionCtx){ node->scope.nodes[i], 0, 0 }));
 			continue;
 		}
-		if(compile_recur(instructions, node->scope.nodes[i], &functions, &bpatches, &global_vars, NULL)) {
+		if(compile_recur(instructions, node->scope.nodes[i], &functions, &bpatches, &global_vars, NULL, NULL)) {
 			ret = 1;
 			goto quit;
 		}
@@ -223,7 +255,7 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 	for(size_t i = 0; i < functions.size; ++i) {
 		Vector_Variable scope_vars;
 		vector_ainit(scope_vars, 64);
-		if(compile_recur(instructions, functions.data[i].node, &functions, &bpatches, &global_vars, &scope_vars)) {
+		if(compile_recur(instructions, functions.data[i].node, &functions, &bpatches, &global_vars, &scope_vars, NULL)) {
 			printf("Failed to compile %s\n", functions.data[i].node->fun.identifier);
 			vector_deinit(scope_vars);
 			ret = 1;
@@ -276,7 +308,11 @@ void ast_print_node(ASTNode* node, int indent) {
 				ast_print_node(node->scope.nodes[i], indent + 1);
 			break;
 		case NODE_FUN_STATEMENT:
-			puts(node->fun.identifier);
+			printf("%s(", node->fun.identifier);
+			for(size_t i = 0; i < node->fun.arguments.size; ++i)
+				printf("%s%s", node->fun.arguments.data[i],
+					i == node->fun.arguments.size - 1 ? "" : ", ");
+			printf(")\n");
 			ast_print_node(node->fun.body, indent + 1);
 			break;
 		case NODE_RET_STATEMENT:
@@ -293,10 +329,13 @@ void ast_print_node(ASTNode* node, int indent) {
 				ast_print_node(node->expr.lhs, indent + 1);
 				ast_print_node(node->expr.rhs, indent + 1);
 			}
-			else if(node->expr.kind == NODE_EXPR_VAR_LOOKUP ||
-				node->expr.kind == NODE_EXPR_FUN_CALL)
-				printf("%s%s\n", node->expr.data,
-					node->expr.kind == NODE_EXPR_VAR_LOOKUP ? "" : "()");
+			else if(node->expr.kind == NODE_EXPR_VAR_LOOKUP)
+				printf("%s\n", node->expr.data);
+			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
+				printf("%s()\n", node->expr.data);
+				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
+					ast_print_node(node->expr.fun_call_args.data[i], indent + 1);
+			}
 			else
 				assert(0);
 			break;
