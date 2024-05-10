@@ -10,16 +10,18 @@ int parser_init(Parser* parser, Lexer* lexer) {
 	return 0;
 }
 
-static inline void unexpected(Token* tok, TokenType expected) {
-	printf("Error on line %d: Invalid token %s, expected %s\n", tok->line,
-		lexer_token_type_to_str(tok->type),
-		lexer_token_type_to_str(expected));
+static inline void unexpected(Parser* parser, TokenType expected) {
+	if(parser->lexer->ctx->print_errors)
+		printf("%s:%d: error: Invalid token %s, expected %s\n",
+			parser->lexer->ctx->filename, parser->tok.line,
+			lexer_token_type_to_str(parser->tok.type),
+			lexer_token_type_to_str(expected));
 }
 
 static int expect(Parser* parser, TokenType expected) {
 	if(parser->tok.type == expected)
 		return lexer_next(parser->lexer, &parser->tok);
-	unexpected(&parser->tok, expected);
+	unexpected(parser, expected);
 	return 1;
 }
 
@@ -27,6 +29,14 @@ static int expect_silent(Parser* parser, TokenType expected) {
 	if(parser->tok.type == expected)
 		return lexer_next(parser->lexer, &parser->tok);
 	return 1;
+}
+
+static inline void invalid(Parser* parser) {
+	if(parser->lexer->ctx->print_errors) {
+		printf("%s:%d: error: Invalid token ", parser->lexer->ctx->filename,
+			parser->tok.line);
+		lexer_print_token(&parser->tok);
+	}
 }
 
 static void scope_append(ASTNode* scope, ASTNode* appendant) {
@@ -169,7 +179,6 @@ static ASTNode* parse_return(Parser* parser) {
 	ret_node->ret.expr = expr_node;
 
 	if(expect(parser, TOKEN_SEMICOLON)) {
-		printf("here\n");
 		ast_destroy(ret_node);
 		return NULL;
 	}
@@ -263,12 +272,11 @@ static ASTNode* parse_scope(Parser* parser) {
 				}
 				break;
 			case TOKEN_EOF:
-				unexpected(&parser->tok, TOKEN_CURLY_CLOSE);
+				unexpected(parser, TOKEN_CURLY_CLOSE);
 				ast_destroy(scope_node);
 				return NULL;
 			default:
-				printf("Error on line %d: Invalid token ", parser->tok.line);
-				lexer_print_token(&parser->tok);
+				invalid(parser);
 				ast_destroy(scope_node);
 				return NULL;
 		}
@@ -387,8 +395,7 @@ ASTNode* parser_parse(Parser* parser) {
 				break;
 			}
 			default:
-				printf("Error on line %d: Invalid token ", parser->tok.line);
-				lexer_print_token(&parser->tok);
+				invalid(parser);
 				ast_destroy(root);
 				return NULL;
 		}
@@ -398,7 +405,8 @@ out:
 	if(!root)
 		return NULL;
 
-	ast_print_node(root, 1);
+	if(parser->lexer->ctx->print_ast)
+		ast_print_node(root, 1);
 
 	return root;
 }

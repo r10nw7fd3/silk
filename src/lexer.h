@@ -2,6 +2,7 @@
 #define _LEXER_H_
 
 #include <stdint.h>
+#include <silk.h>
 
 #define FOR_EACH_TOKEN(_) \
 	_(TOKEN_EOF) \
@@ -40,12 +41,13 @@ typedef struct {
 } Token;
 
 typedef struct {
+	Silk_Ctx* ctx;
 	const char* data;
 	const char* end;
 	int line;
 } Lexer;
 
-int lexer_init(Lexer* lexer, const char* data, const char* end);
+int lexer_init(Lexer* lexer, Silk_Ctx* ctx, const char* data, const char* end);
 int lexer_next(Lexer* lexer, Token* tok);
 const char* lexer_token_type_to_str(TokenType type);
 void lexer_print_token(Token* tok);

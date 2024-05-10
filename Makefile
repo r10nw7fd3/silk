@@ -14,7 +14,7 @@ all: $(OUT) silk
 $(OUT): $(OBJ)
 	$(CC) -shared -o $(OUT) $(OBJ)
 
-silk: $(OUT)
+silk: $(OUT) silk.c
 	$(CC) -Wall -Wextra -std=c99 -o $@ -Iinclude -L. -lsilk silk.c
 
 $(OBJ): | build

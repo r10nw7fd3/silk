@@ -5,7 +5,8 @@
 #include <string.h>
 #include <assert.h>
 
-int lexer_init(Lexer* lexer, const char* data, const char* end) {
+int lexer_init(Lexer* lexer, Silk_Ctx* ctx, const char* data, const char* end) {
+	lexer->ctx = ctx;
 	lexer->data = data;
 	lexer->end = end;
 	lexer->line = 1;
@@ -74,7 +75,7 @@ again:
 		}
 		tok->type = TOKEN_INT_LITERAL;
 		tok->num = num;
-		return 0;
+		goto ret;
 	}
 	if(*lexer->data == '"') {
 		++lexer->data;
@@ -89,7 +90,7 @@ again:
 
 		tok->type = TOKEN_STR_LITERAL;
 		tok->data = copy_str_to_heap(data);
-		return 0;
+		goto ret;
 	}
 	else {
 		size_t i;
@@ -100,25 +101,28 @@ again:
 		data[ i < DATA_SIZE ? i : DATA_SIZE - 1 ] = 0;
 		if(!strcmp(data, "function")) {
 			tok->type = TOKEN_FUNCTION;
-			return 0;
+			goto ret;
 		}
 		if(!strcmp(data, "return")) {
 			tok->type = TOKEN_RETURN;
-			return 0;
+			goto ret;
 		}
 		if(!strcmp(data, "var")) {
 			tok->type = TOKEN_VAR;
-			return 0;
+			goto ret;
 		}
 		else {
 			tok->type = TOKEN_IDENTIFIER;
 			tok->data = copy_str_to_heap(data);
-			return 0;
+			goto ret;
 		}
 	}
 
 inc_ret:
 	++lexer->data;
+ret:
+	if(lexer->ctx->print_tokens)
+		lexer_print_token(tok);
 	return 0;
 }
 

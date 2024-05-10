@@ -31,42 +31,42 @@ error:
 	return -1;
 }
 
-int silk_run_file(const char* filename) {
+int silk_run_file(Silk_Ctx* ctx, const char* filename) {
 	char* file;
 	size_t size;
 	int fd = map_file(filename, &file, &size);
 	if(fd == -1)
 		return 1;
 
-	int ret = silk_run(file, file + size);
+	if(!ctx->filename)
+		ctx->filename = filename;
+
+	int ret = silk_run(ctx, file, file + size);
 	close(fd);
 
 	return ret;
 }
 
-int silk_run_string(const char* js_data) {
+int silk_run_string(Silk_Ctx* ctx, const char* js_data) {
 	size_t len = strlen(js_data);
-	return silk_run(js_data, js_data + len);
+	return silk_run(ctx, js_data, js_data + len);
 }
 
-#define PRINT_TOKENS 0
-
-#if PRINT_TOKENS
-int silk_run(const char* js_data, const char* js_data_end) {
-	Lexer lexer;
-	lexer_init(&lexer, js_data, js_data_end);
-	Token tok;
-	lexer_next(&lexer, &tok);
-	while(tok.type != TOKEN_EOF) {
-		lexer_print_token(&tok);
-		lexer_next(&lexer, &tok);
+static inline int intlen(size_t i) {
+	int len = 1;
+	while(i > 9) {
+		++len;
+		i /= 10;
 	}
-	return 0;
+	return len;
 }
-#else
-int silk_run(const char* js_data, const char* js_data_end) {
+
+int silk_run(Silk_Ctx* ctx, const char* js_data, const char* js_data_end) {
+	if(!ctx->filename)
+		ctx->filename = "(unnamed)";
+
 	Lexer lexer;
-	if(lexer_init(&lexer, js_data, js_data_end))
+	if(lexer_init(&lexer, ctx, js_data, js_data_end))
 		return 1;
 
 	Parser parser;
@@ -90,18 +90,27 @@ int silk_run(const char* js_data, const char* js_data_end) {
 		vector_deinit(insts);
 	}
 
-	for(size_t i = 0; i < insts.size; ++i)
-		instruction_print(&insts.data[i]);
+	if(ctx->print_bytecode) {
+		for(size_t i = 0; i < insts.size; ++i) {
+			printf("%*zu: ", intlen(insts.size), i);
+			instruction_print(&insts.data[i]);
+		}
+	}
 
 	if(vm_run(&vm, insts.data, insts.size)) {
-		puts("vm_run() failed");
 		vm_deinit(&vm);
 		ast_destroy(root);
 		vector_deinit(insts);
 		return 1;
 	}
 
-	printf("Value on top of the stack: %ld\n", vm.operand_stack.data[vm.operand_stack.sp - 1]);
+	if(ctx->print_stack_on_exit) {
+		puts("-----");
+		size_t sz = vm.operand_stack.sp;
+		for(size_t i = 0; i < vm.operand_stack.sp; ++i)
+			printf("%ld\n", vm.operand_stack.data[sz - i - 1]);
+		puts("-----");
+	}
 
 	vm_deinit(&vm);
 	ast_destroy(root);
@@ -109,5 +118,3 @@ int silk_run(const char* js_data, const char* js_data_end) {
 
 	return 0;
 }
-
-#endif
