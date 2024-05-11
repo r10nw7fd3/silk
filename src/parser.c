@@ -91,7 +91,7 @@ static ASTNode* parse_expr(Parser* parser) {
 				return NULL;
 			}
 
-			vector_ainit(expr_node->expr.fun_call_args, 64);
+			vector_ASTNode_ptr_t_ainit(&expr_node->expr.fun_call_args, 64);
 			while(parser->tok.type != TOKEN_BRACKET_CLOSE) {
 				ASTNode* arg = parse_expr(parser);
 				if(!arg) {
@@ -99,7 +99,7 @@ static ASTNode* parse_expr(Parser* parser) {
 					return NULL;
 				}
 
-				vector_aappend(expr_node->expr.fun_call_args, arg);
+				vector_aappend(&expr_node->expr.fun_call_args, arg);
 
 				if(parser->tok.type == TOKEN_COMMA) {
 					if(expect(parser, TOKEN_COMMA)) {
@@ -297,19 +297,19 @@ static ASTNode* parse_function(Parser* parser) {
 	}
 
 	Vector_str_t arguments;
-	vector_ainit(arguments, 64);
+	vector_str_t_ainit(&arguments, 64);
 
 	while(parser->tok.type != TOKEN_BRACKET_CLOSE) {
 		char* arg = parser->tok.data;
 		if(expect(parser, TOKEN_IDENTIFIER)) {
 			for(size_t i = 0; i < arguments.size; ++i)
 				free(arguments.data[i]);
-			vector_deinit(arguments);
+			vector_deinit(&arguments);
 			free(identifier);
 			return NULL;
 		}
 
-		vector_aappend(arguments, arg);
+		vector_aappend(&arguments, arg);
 
 		if(parser->tok.type == TOKEN_COMMA)
 			expect(parser, TOKEN_COMMA);
@@ -318,7 +318,7 @@ static ASTNode* parse_function(Parser* parser) {
 	if(expect(parser, TOKEN_BRACKET_CLOSE)) {
 		for(size_t i = 0; i < arguments.size; ++i)
 			free(arguments.data[i]);
-		vector_deinit(arguments);
+		vector_deinit(&arguments);
 		free(identifier);
 		return NULL;
 	}
@@ -327,7 +327,7 @@ static ASTNode* parse_function(Parser* parser) {
 	if(!body) {
 		for(size_t i = 0; i < arguments.size; ++i)
 			free(arguments.data[i]);
-		vector_deinit(arguments);
+		vector_deinit(&arguments);
 		free(identifier);
 		return NULL;
 	}

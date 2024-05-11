@@ -10,19 +10,19 @@ typedef struct {
 	size_t start_addr;
 	int64_t ra_index;
 } FunctionCtx;
-VECTOR_DEFINE(FunctionCtx);
+VECTOR_DEFINE(FunctionCtx)
 
 typedef struct {
 	const char* identifier;
 	size_t code_pos;
 } BackPatch;
-VECTOR_DEFINE(BackPatch);
+VECTOR_DEFINE(BackPatch)
 
 typedef struct {
 	char* identifier;
 	int64_t index;
 } Variable;
-VECTOR_DEFINE(Variable);
+VECTOR_DEFINE(Variable)
 
 ASTNode* ast_create_node(ASTNode node) {
 	ASTNode* new = malloc(sizeof(ASTNode));
@@ -45,7 +45,7 @@ void ast_destroy(ASTNode* node) {
 			free(node->fun.identifier);
 			for(size_t i = 0; i < node->fun.arguments.size; ++i)
 				free(node->fun.arguments.data[i]);
-			vector_deinit(node->fun.arguments);
+			vector_deinit(&node->fun.arguments);
 			ast_destroy(node->fun.body);
 			break;
 		case NODE_RET_STATEMENT:
@@ -66,7 +66,7 @@ void ast_destroy(ASTNode* node) {
 			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
 				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
 					ast_destroy(node->expr.fun_call_args.data[i]);
-				vector_deinit(node->expr.fun_call_args);
+				vector_deinit(&node->expr.fun_call_args);
 				free(node->expr.data);
 			}
 			else
@@ -116,22 +116,22 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 	switch(node->type) {
 		case NODE_SCOPE: { // TODO: Rethink how scopes should be implemented
 			Vector_Variable scope_vars;
-			vector_ainit(scope_vars, 64);
+			vector_Variable_ainit(&scope_vars, 64);
 			if(scope_merge_vars) {
 				memcpy(scope_vars.data, scope_merge_vars->data, sizeof(Variable) * scope_merge_vars->size);
 				scope_vars.size = scope_merge_vars->size;
 			}
 			for(size_t i = 0; i < node->scope.n_nodes; ++i)
 				if(compile_recur(instructions, node->scope.nodes[i], functions, bpatches, global_vars, &scope_vars, NULL)) {
-					vector_deinit(scope_vars);
+					vector_deinit(&scope_vars);
 					return 1;
 				}
-			vector_deinit(scope_vars);
+			vector_deinit(&scope_vars);
 		}
 			break;
 		case NODE_EXPR:
 			if(node->expr.kind == NODE_EXPR_INT_LIT)
-				vector_aappend(*instructions, ((Instruction){ INST_PUSH, node->expr.num }));
+				vector_aappend(instructions, ((Instruction){ INST_PUSH, node->expr.num }));
 			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
 				if(compile_recur(instructions, node->expr.lhs, functions, bpatches, global_vars, vars, NULL))
 					return 1;
@@ -139,16 +139,16 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 					return 1;
 				switch(node->expr.op) {
 					case NODE_EXPR_SUM:
-						vector_aappend(*instructions, ((Instruction){ INST_SUM, 0 }));
+						vector_aappend(instructions, ((Instruction){ INST_SUM, 0 }));
 						break;
 					case NODE_EXPR_SUB:
-						vector_aappend(*instructions, ((Instruction){ INST_SUB, 0 }));
+						vector_aappend(instructions, ((Instruction){ INST_SUB, 0 }));
 						break;
 					case NODE_EXPR_MUL:
-						vector_aappend(*instructions, ((Instruction){ INST_MUL, 0 }));
+						vector_aappend(instructions, ((Instruction){ INST_MUL, 0 }));
 						break;
 					case NODE_EXPR_DIV:
-						vector_aappend(*instructions, ((Instruction){ INST_DIV, 0 }));
+						vector_aappend(instructions, ((Instruction){ INST_DIV, 0 }));
 						break;
 					default:
 						assert(0);
@@ -159,20 +159,20 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 					if(compile_recur(instructions, node->expr.fun_call_args.data[i], functions, bpatches, global_vars, vars, NULL))
 					return 1;
 
-				vector_aappend(*bpatches, ((BackPatch){ node->expr.data, instructions->size }));
-				vector_aappend(*instructions, ((Instruction){ INST_CALL, 0 }));
+				vector_aappend(bpatches, ((BackPatch){ node->expr.data, instructions->size }));
+				vector_aappend(instructions, ((Instruction){ INST_CALL, 0 }));
 			}
 			else if(node->expr.kind == NODE_EXPR_VAR_LOOKUP) {
 				if(!is_global) {
 					for(size_t i = 0; i < vars->size; ++i)
 						if(!strcmp(node->expr.data, vars->data[i].identifier)) {
-							vector_aappend(*instructions, ((Instruction){ INST_LOAD, vars->data[i].index }));
+							vector_aappend(instructions, ((Instruction){ INST_LOAD, vars->data[i].index }));
 							goto expr_out;
 						}
 				}
 				for(size_t i = 0; i < global_vars->size; ++i)
 					if(!strcmp(node->expr.data, global_vars->data[i].identifier)) {
-						vector_aappend(*instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
+						vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
 						goto expr_out;
 					}
 				return 1;
@@ -184,7 +184,7 @@ expr_out:
 		case NODE_RET_STATEMENT:
 			if(compile_recur(instructions, node->ret.expr, functions, bpatches, global_vars, vars, NULL))
 				return 1;
-			vector_aappend(*instructions, ((Instruction){ INST_RET, 0 }));
+			vector_aappend(instructions, ((Instruction){ INST_RET, 0 }));
 			break;
 		case NODE_FUN_STATEMENT: {
 			FunctionCtx* fun = lookup_fun_ctx(functions, node);
@@ -192,21 +192,21 @@ expr_out:
 			Vector_Variable* merge_or_null = NULL;
 			Vector_Variable merge;
 			if(node->fun.arguments.size) {
-				vector_ainit(merge, 64);
+				vector_Variable_ainit(&merge, 64);
 				for(size_t i = 0; i < node->fun.arguments.size; ++i) {
-					vector_aappend(merge, ((Variable){ node->fun.arguments.data[i], i }));
-					vector_aappend(*instructions, ((Instruction){ INST_STORE, i }));
+					vector_aappend(&merge, ((Variable){ node->fun.arguments.data[i], i }));
+					vector_aappend(instructions, ((Instruction){ INST_STORE, i }));
 				}
 
 				merge_or_null = &merge;
 			}
 			if(compile_recur(instructions, node->fun.body, functions, bpatches, global_vars, vars, merge_or_null)) {
 				if(node->fun.arguments.size)
-					vector_deinit(*merge_or_null);
+					vector_deinit(merge_or_null);
 				return 1;
 			}
 			if(node->fun.arguments.size)
-				vector_deinit(*merge_or_null);
+				vector_deinit(merge_or_null);
 			break;
 		}
 		case NODE_VAR_STATEMENT: {
@@ -215,9 +215,8 @@ expr_out:
 			if(compile_recur(instructions, node->var.expr, functions, bpatches, global_vars, vars, NULL))
 				return 1;
 			int64_t index = is_global ? global_vars->size : vars->size;
-			Vector_Variable* workaround = is_global ? global_vars : vars;
-			vector_aappend(*workaround, ((Variable){ node->var.identifier, index }));
-			vector_aappend(*instructions, ((Instruction){ is_global ? INST_STORE_GLOBAL : INST_STORE, index }));
+			vector_aappend(is_global ? global_vars : vars, ((Variable){ node->var.identifier, index }));
+			vector_aappend(instructions, ((Instruction){ is_global ? INST_STORE_GLOBAL : INST_STORE, index }));
 			break;
 		}
 		default:
@@ -230,18 +229,18 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 	int ret = 0;
 
 	Vector_FunctionCtx functions;
-	vector_ainit(functions, 64);
+	vector_FunctionCtx_ainit(&functions, 64);
 
 	Vector_BackPatch bpatches;
-	vector_ainit(bpatches, 64);
+	vector_BackPatch_ainit(&bpatches, 64);
 
 	Vector_Variable global_vars;
-	vector_ainit(global_vars, 64);
+	vector_Variable_ainit(&global_vars, 64);
 
 	assert(node->type == NODE_SCOPE);
 	for(size_t i = 0; i < node->scope.n_nodes; ++i) {
 		if(node->scope.nodes[i]->type == NODE_FUN_STATEMENT) {
-			vector_aappend(functions, ((FunctionCtx){ node->scope.nodes[i], 0, 0 }));
+			vector_aappend(&functions, ((FunctionCtx){ node->scope.nodes[i], 0, 0 }));
 			continue;
 		}
 		if(compile_recur(instructions, node->scope.nodes[i], &functions, &bpatches, &global_vars, NULL, NULL)) {
@@ -250,18 +249,18 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 		}
 	}
 
-	vector_aappend(*instructions, ((Instruction){ INST_EXIT, 0 }));
+	vector_aappend(instructions, ((Instruction){ INST_EXIT, 0 }));
 
 	for(size_t i = 0; i < functions.size; ++i) {
 		Vector_Variable scope_vars;
-		vector_ainit(scope_vars, 64);
+		vector_Variable_ainit(&scope_vars, 64);
 		if(compile_recur(instructions, functions.data[i].node, &functions, &bpatches, &global_vars, &scope_vars, NULL)) {
 			printf("Failed to compile %s\n", functions.data[i].node->fun.identifier);
-			vector_deinit(scope_vars);
+			vector_deinit(&scope_vars);
 			ret = 1;
 			goto quit;
 		}
-		vector_deinit(scope_vars);
+		vector_deinit(&scope_vars);
 	}
 
 	for(size_t i = 0; i < bpatches.size; ++i) {
@@ -270,9 +269,9 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 	}
 
 quit:
-	vector_deinit(functions);
-	vector_deinit(bpatches);
-	vector_deinit(global_vars);
+	vector_deinit(&functions);
+	vector_deinit(&bpatches);
+	vector_deinit(&global_vars);
 
 	return ret;
 }

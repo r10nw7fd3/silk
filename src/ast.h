@@ -22,14 +22,14 @@ typedef enum {
 typedef char* str_t;
 #ifndef VECTOR_DEFINED_str_t
 #define VECTOR_DEFINED_str_t
-VECTOR_DEFINE(str_t);
+VECTOR_DEFINE(str_t)
 #endif
 
 typedef struct ASTNode ASTNode;
 typedef ASTNode* ASTNode_ptr_t;
 #ifndef VECTOR_DEFINED_ASTNode_ptr_t
 #define VECTOR_DEFINED_ASTNode_ptr_t
-VECTOR_DEFINE(ASTNode_ptr_t);
+VECTOR_DEFINE(ASTNode_ptr_t)
 #endif
 
 struct ASTNode {
@@ -59,8 +59,8 @@ struct ASTNode {
 					} op;
 					ASTNode* lhs;
 					ASTNode* rhs;
+					Vector_ASTNode_ptr_t fun_call_args;
 				};
-				Vector_ASTNode_ptr_t fun_call_args;
 			};
 		} expr;
 		struct {
@@ -80,7 +80,7 @@ struct ASTNode {
 
 #ifndef VECTOR_DEFINED_Instruction
 #define VECTOR_DEFINED_Instruction
-VECTOR_DEFINE(Instruction);
+VECTOR_DEFINE(Instruction)
 #endif
 
 ASTNode* ast_create_node(ASTNode node);

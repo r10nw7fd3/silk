@@ -78,7 +78,7 @@ int silk_run(Silk_Ctx* ctx, const char* js_data, const char* js_data_end) {
 		return 1;
 
 	Vector_Instruction insts;
-	vector_ainit(insts, 64);
+	vector_Instruction_ainit(&insts, 64);
 	if(ast_compile(&insts, root)) {
 		ast_destroy(root);
 		return 1;
@@ -87,7 +87,7 @@ int silk_run(Silk_Ctx* ctx, const char* js_data, const char* js_data_end) {
 	VM vm;
 	if(vm_init(&vm, 64, 64)) {
 		ast_destroy(root);
-		vector_deinit(insts);
+		vector_deinit(&insts);
 	}
 
 	if(ctx->print_bytecode) {
@@ -100,7 +100,7 @@ int silk_run(Silk_Ctx* ctx, const char* js_data, const char* js_data_end) {
 	if(vm_run(&vm, insts.data, insts.size)) {
 		vm_deinit(&vm);
 		ast_destroy(root);
-		vector_deinit(insts);
+		vector_deinit(&insts);
 		return 1;
 	}
 
@@ -114,7 +114,7 @@ int silk_run(Silk_Ctx* ctx, const char* js_data, const char* js_data_end) {
 
 	vm_deinit(&vm);
 	ast_destroy(root);
-	vector_deinit(insts);
+	vector_deinit(&insts);
 
 	return 0;
 }
