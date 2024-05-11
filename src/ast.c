@@ -52,22 +52,21 @@ void ast_destroy(ASTNode* node) {
 			ast_destroy(node->ret.expr);
 			break;
 		case NODE_EXPR:
-			if(node->expr.kind == NODE_EXPR_INT_LIT) {
+			if(node->expr.type == NODE_EXPR_INT_LIT) {
 			}
-			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
-				ast_destroy(node->expr.lhs);
-				ast_destroy(node->expr.rhs);
+			else if(node->expr.type == NODE_EXPR_STR_LIT)
+				free(node->expr.str_lit.str);
+			else if(node->expr.type == NODE_EXPR_BIN_OP) {
+				ast_destroy(node->expr.bin_op.lhs);
+				ast_destroy(node->expr.bin_op.rhs);
 			}
-			else if(
-				node->expr.kind == NODE_EXPR_VAR_LOOKUP ||
-				node->expr.kind == NODE_EXPR_STR_LIT
-			)
-				free(node->expr.data);
-			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
-				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
-					ast_destroy(node->expr.fun_call_args.data[i]);
-				vector_deinit(&node->expr.fun_call_args);
-				free(node->expr.data);
+			else if(node->expr.type == NODE_EXPR_VAR_LOOKUP)
+				free(node->expr.var_lookup.identifier);
+			else if(node->expr.type == NODE_EXPR_FUN_CALL) {
+				for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
+					ast_destroy(node->expr.fun_call.args.data[i]);
+				vector_deinit(&node->expr.fun_call.args);
+				free(node->expr.fun_call.identifier);
 			}
 			else
 				assert(0);
@@ -130,14 +129,14 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 		}
 			break;
 		case NODE_EXPR:
-			if(node->expr.kind == NODE_EXPR_INT_LIT)
-				vector_aappend(instructions, ((Instruction){ INST_PUSH, node->expr.num }));
-			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
-				if(compile_recur(instructions, node->expr.lhs, functions, bpatches, global_vars, vars, NULL))
+			if(node->expr.type == NODE_EXPR_INT_LIT)
+				vector_aappend(instructions, ((Instruction){ INST_PUSH, node->expr.int_lit.num }));
+			else if(node->expr.type == NODE_EXPR_BIN_OP) {
+				if(compile_recur(instructions, node->expr.bin_op.lhs, functions, bpatches, global_vars, vars, NULL))
 					return 1;
-				if(compile_recur(instructions, node->expr.rhs, functions, bpatches, global_vars, vars, NULL))
+				if(compile_recur(instructions, node->expr.bin_op.rhs, functions, bpatches, global_vars, vars, NULL))
 					return 1;
-				switch(node->expr.op) {
+				switch(node->expr.bin_op.type) {
 					case NODE_EXPR_SUM:
 						vector_aappend(instructions, ((Instruction){ INST_SUM, 0 }));
 						break;
@@ -154,24 +153,24 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 						assert(0);
 				}
 			}
-			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
-				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
-					if(compile_recur(instructions, node->expr.fun_call_args.data[i], functions, bpatches, global_vars, vars, NULL))
+			else if(node->expr.type == NODE_EXPR_FUN_CALL) {
+				for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
+					if(compile_recur(instructions, node->expr.fun_call.args.data[i], functions, bpatches, global_vars, vars, NULL))
 					return 1;
 
-				vector_aappend(bpatches, ((BackPatch){ node->expr.data, instructions->size }));
+				vector_aappend(bpatches, ((BackPatch){ node->expr.fun_call.identifier, instructions->size }));
 				vector_aappend(instructions, ((Instruction){ INST_CALL, 0 }));
 			}
-			else if(node->expr.kind == NODE_EXPR_VAR_LOOKUP) {
+			else if(node->expr.type == NODE_EXPR_VAR_LOOKUP) {
 				if(!is_global) {
 					for(size_t i = 0; i < vars->size; ++i)
-						if(!strcmp(node->expr.data, vars->data[i].identifier)) {
+						if(!strcmp(node->expr.var_lookup.identifier, vars->data[i].identifier)) {
 							vector_aappend(instructions, ((Instruction){ INST_LOAD, vars->data[i].index }));
 							goto expr_out;
 						}
 				}
 				for(size_t i = 0; i < global_vars->size; ++i)
-					if(!strcmp(node->expr.data, global_vars->data[i].identifier)) {
+					if(!strcmp(node->expr.var_lookup.identifier, global_vars->data[i].identifier)) {
 						vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
 						goto expr_out;
 					}
@@ -319,21 +318,21 @@ void ast_print_node(ASTNode* node, int indent) {
 			ast_print_node(node->ret.expr, indent + 1);
 			break;
 		case NODE_EXPR:
-			if(node->expr.kind == NODE_EXPR_INT_LIT)
-				printf("%ld\n", node->expr.num);
-			else if(node->expr.kind == NODE_EXPR_STR_LIT)
-				printf("\"%s\"\n", node->expr.data);
-			else if(node->expr.kind == NODE_EXPR_BIN_OP) {
-				printf("%c\n", node->expr.op);
-				ast_print_node(node->expr.lhs, indent + 1);
-				ast_print_node(node->expr.rhs, indent + 1);
+			if(node->expr.type == NODE_EXPR_INT_LIT)
+				printf("%ld\n", node->expr.int_lit.num);
+			else if(node->expr.type == NODE_EXPR_STR_LIT)
+				printf("\"%s\"\n", node->expr.str_lit.str);
+			else if(node->expr.type == NODE_EXPR_BIN_OP) {
+				printf("%c\n", node->expr.bin_op.type);
+				ast_print_node(node->expr.bin_op.lhs, indent + 1);
+				ast_print_node(node->expr.bin_op.rhs, indent + 1);
 			}
-			else if(node->expr.kind == NODE_EXPR_VAR_LOOKUP)
-				printf("%s\n", node->expr.data);
-			else if(node->expr.kind == NODE_EXPR_FUN_CALL) {
-				printf("%s()\n", node->expr.data);
-				for(size_t i = 0; i < node->expr.fun_call_args.size; ++i)
-					ast_print_node(node->expr.fun_call_args.data[i], indent + 1);
+			else if(node->expr.type == NODE_EXPR_VAR_LOOKUP)
+				printf("%s\n", node->expr.var_lookup.identifier);
+			else if(node->expr.type == NODE_EXPR_FUN_CALL) {
+				printf("%s()\n", node->expr.fun_call.identifier);
+				for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
+					ast_print_node(node->expr.fun_call.args.data[i], indent + 1);
 			}
 			else
 				assert(0);

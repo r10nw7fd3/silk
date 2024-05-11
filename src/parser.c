@@ -68,7 +68,7 @@ static int token_to_bin_op(TokenType type) {
 
 static ASTNode* parse_expr(Parser* parser) {
 	ASTNode* expr_node = ast_create_node((ASTNode){
-		.type = NODE_EXPR,
+		.type = NODE_EXPR
 	});
 
 	TokenType lhs_type = parser->tok.type;
@@ -79,53 +79,58 @@ static ASTNode* parse_expr(Parser* parser) {
 		expect_silent(parser, TOKEN_INT_LITERAL) &&
 		expect(parser, TOKEN_STR_LITERAL)
 	) {
-		ast_destroy(expr_node);
+		free(expr_node);
 		return NULL;
 	}
 
 	if(lhs_type == TOKEN_IDENTIFIER) {
-		expr_node->expr.data = data;
 		if(parser->tok.type == TOKEN_BRACKET_OPEN) {
 			if(lexer_next(parser->lexer, &parser->tok)) {
-				ast_destroy(expr_node);
+				free(expr_node);
 				return NULL;
 			}
 
-			vector_ASTNode_ptr_t_ainit(&expr_node->expr.fun_call_args, 64);
+			vector_ASTNode_ptr_t_ainit(&expr_node->expr.fun_call.args, 64);
 			while(parser->tok.type != TOKEN_BRACKET_CLOSE) {
 				ASTNode* arg = parse_expr(parser);
 				if(!arg) {
-					ast_destroy(expr_node);
+					vector_deinit(&expr_node->expr.fun_call.args);
+					free(expr_node);
 					return NULL;
 				}
 
-				vector_aappend(&expr_node->expr.fun_call_args, arg);
+				vector_aappend(&expr_node->expr.fun_call.args, arg);
 
 				if(parser->tok.type == TOKEN_COMMA) {
 					if(expect(parser, TOKEN_COMMA)) {
-						ast_destroy(expr_node);
+						vector_deinit(&expr_node->expr.fun_call.args);
+						free(expr_node);
 						return NULL;
 					}
 				}
 			}
 
 			if(expect(parser, TOKEN_BRACKET_CLOSE)) {
-				ast_destroy(expr_node);
+				vector_deinit(&expr_node->expr.fun_call.args);
+				free(expr_node);
 				return NULL;
 			}
-			expr_node->expr.kind = NODE_EXPR_FUN_CALL;
+			expr_node->expr.type = NODE_EXPR_FUN_CALL;
+			expr_node->expr.fun_call.identifier = data;
 		}
-		else
-			expr_node->expr.kind = NODE_EXPR_VAR_LOOKUP;
+		else {
+			expr_node->expr.type = NODE_EXPR_VAR_LOOKUP;
+			expr_node->expr.var_lookup.identifier = data;
+		}
 
 	}
 	else if(lhs_type == TOKEN_INT_LITERAL) {
-		expr_node->expr.kind = NODE_EXPR_INT_LIT;
-		expr_node->expr.num = num;
+		expr_node->expr.type = NODE_EXPR_INT_LIT;
+		expr_node->expr.int_lit.num = num;
 	}
 	else if(lhs_type == TOKEN_STR_LITERAL) {
-		expr_node->expr.kind = NODE_EXPR_STR_LIT;
-		expr_node->expr.data = data;
+		expr_node->expr.type = NODE_EXPR_STR_LIT;
+		expr_node->expr.str_lit.str = data;
 	}
 	else
 		assert(0);
@@ -145,10 +150,12 @@ static ASTNode* parse_expr(Parser* parser) {
 		expr_node = ast_create_node((ASTNode){
 			.type = NODE_EXPR,
 			.expr = {
-				.kind = NODE_EXPR_BIN_OP,
-				.op = token_to_bin_op(type),
-				.lhs = lhs,
-				.rhs = rhs
+				.type = NODE_EXPR_BIN_OP,
+				.bin_op = {
+					.type = token_to_bin_op(type),
+					.lhs = lhs,
+					.rhs = rhs
+				}
 			}
 		});
 	}
@@ -194,10 +201,8 @@ static ASTNode* parse_var(Parser* parser) {
 	if(expect(parser, TOKEN_IDENTIFIER))
 		return NULL;
 
-	if(expect(parser, TOKEN_EQ_SIGN)) {
-		free(identifier);
+	if(expect(parser, TOKEN_EQ_SIGN))
 		return NULL;
-	}
 
 	ASTNode* expr_node = parse_expr(parser);
 	if(!expr_node) {
@@ -291,10 +296,8 @@ static ASTNode* parse_function(Parser* parser) {
 	if(expect(parser, TOKEN_IDENTIFIER))
 		return NULL;
 
-	if(expect(parser, TOKEN_BRACKET_OPEN)) {
-		free(identifier);
+	if(expect(parser, TOKEN_BRACKET_OPEN))
 		return NULL;
-	}
 
 	Vector_str_t arguments;
 	vector_str_t_ainit(&arguments, 64);

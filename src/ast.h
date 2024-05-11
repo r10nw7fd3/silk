@@ -46,21 +46,31 @@ struct ASTNode {
 				NODE_EXPR_BIN_OP,
 				NODE_EXPR_VAR_LOOKUP,
 				NODE_EXPR_FUN_CALL
-			} kind;
+			} type;
 			union {
-				int64_t num;
-				char* data;
+				struct {
+					int64_t num;
+				} int_lit;
+				struct {
+					char* str;
+				} str_lit;
 				struct {
 					enum {
 						NODE_EXPR_SUM = '+',
 						NODE_EXPR_SUB = '-',
 						NODE_EXPR_MUL = '*',
 						NODE_EXPR_DIV = '/'
-					} op;
+					} type;
 					ASTNode* lhs;
 					ASTNode* rhs;
-					Vector_ASTNode_ptr_t fun_call_args;
-				};
+				} bin_op;
+				struct {
+					char* identifier;
+				} var_lookup;
+				struct {
+					char* identifier;
+					Vector_ASTNode_ptr_t args;
+				} fun_call;
 			};
 		} expr;
 		struct {
