@@ -68,7 +68,8 @@ static int token_to_bin_op(TokenType type) {
 
 static ASTNode* parse_expr(Parser* parser) {
 	ASTNode* expr_node = ast_create_node((ASTNode){
-		.type = NODE_EXPR
+		.type = NODE_EXPR,
+		.line = parser->tok.line
 	});
 
 	TokenType lhs_type = parser->tok.type;
@@ -164,11 +165,13 @@ static ASTNode* parse_expr(Parser* parser) {
 }
 
 static ASTNode* parse_return(Parser* parser) {
+	int line = parser->tok.line;
 	if(lexer_next(parser->lexer, &parser->tok))
 		return NULL;
 
 	ASTNode* ret_node = ast_create_node((ASTNode){
 		.type = NODE_RET_STATEMENT,
+		.line = line,
 		.ret = {
 			NULL
 		}
@@ -194,6 +197,7 @@ static ASTNode* parse_return(Parser* parser) {
 }
 
 static ASTNode* parse_var(Parser* parser) {
+	int line = parser->tok.line;
 	if(lexer_next(parser->lexer, &parser->tok))
 		return NULL;
 
@@ -212,6 +216,7 @@ static ASTNode* parse_var(Parser* parser) {
 
 	ASTNode* var_node = ast_create_node((ASTNode){
 		.type = NODE_VAR_STATEMENT,
+		.line = line,
 		.var = {
 			.identifier = identifier,
 			.expr = expr_node,
@@ -223,6 +228,7 @@ static ASTNode* parse_var(Parser* parser) {
 static ASTNode* parse_scope(Parser* parser) {
 	ASTNode* scope_node = ast_create_node((ASTNode){
 		.type = NODE_SCOPE,
+		.line = parser->tok.line,
 		.scope = {
 			0,
 			NULL
@@ -289,6 +295,7 @@ static ASTNode* parse_scope(Parser* parser) {
 }
 
 static ASTNode* parse_function(Parser* parser) {
+	int line = parser->tok.line;
 	if(lexer_next(parser->lexer, &parser->tok))
 		return NULL;
 
@@ -337,6 +344,7 @@ static ASTNode* parse_function(Parser* parser) {
 
 	ASTNode* fun_node = ast_create_node((ASTNode){
 		.type = NODE_FUN_STATEMENT,
+		.line = line,
 		.fun = {
 			.identifier = identifier,
 			.arguments = arguments,

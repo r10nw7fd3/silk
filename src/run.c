@@ -79,8 +79,9 @@ int silk_run(Silk_Ctx* ctx, const char* js_data, const char* js_data_end) {
 
 	Vector_Instruction insts;
 	vector_Instruction_ainit(&insts, 64);
-	if(ast_compile(&insts, root)) {
+	if(ast_compile(ctx, &insts, root)) {
 		ast_destroy(root);
+		vector_deinit(&insts);
 		return 1;
 	}
 

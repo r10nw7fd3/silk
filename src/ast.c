@@ -15,6 +15,7 @@ VECTOR_DEFINE(FunctionCtx)
 typedef struct {
 	const char* identifier;
 	size_t code_pos;
+	int line;
 } BackPatch;
 VECTOR_DEFINE(BackPatch)
 
@@ -96,7 +97,7 @@ static inline FunctionCtx* lookup_fun_ctx_by_name(Vector_FunctionCtx* funcs, con
 	for(size_t i = 0; i < funcs->size; ++i)
 		if(!strcmp(funcs->data[i].node->fun.identifier, name))
 			return &funcs->data[i];
-	assert(0);
+	return NULL;
 }
 
 static int is_a_redecl(const char* iden, Vector_Variable* global_vars, Vector_Variable* vars) {
@@ -112,7 +113,7 @@ static int is_a_redecl(const char* iden, Vector_Variable* global_vars, Vector_Va
 	return 0;
 }
 
-static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
+static int compile_recur(Silk_Ctx* ctx, Vector_Instruction* instructions, ASTNode* node,
 	Vector_FunctionCtx* functions, Vector_BackPatch* bpatches, Vector_Variable* global_vars,
 	Vector_Variable* vars, Vector_Variable* scope_merge_vars) {
 	int is_global = vars == NULL;
@@ -125,7 +126,7 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 				scope_vars.size = scope_merge_vars->size;
 			}
 			for(size_t i = 0; i < node->scope.n_nodes; ++i)
-				if(compile_recur(instructions, node->scope.nodes[i], functions, bpatches, global_vars, &scope_vars, NULL)) {
+				if(compile_recur(ctx, instructions, node->scope.nodes[i], functions, bpatches, global_vars, &scope_vars, NULL)) {
 					vector_deinit(&scope_vars);
 					return 1;
 				}
@@ -138,9 +139,9 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 					vector_aappend(instructions, ((Instruction){ INST_PUSH, node->expr.int_lit.num }));
 					break;
 				case NODE_EXPR_BIN_OP:
-					if(compile_recur(instructions, node->expr.bin_op.lhs, functions, bpatches, global_vars, vars, NULL))
+					if(compile_recur(ctx, instructions, node->expr.bin_op.lhs, functions, bpatches, global_vars, vars, NULL))
 						return 1;
-					if(compile_recur(instructions, node->expr.bin_op.rhs, functions, bpatches, global_vars, vars, NULL))
+					if(compile_recur(ctx, instructions, node->expr.bin_op.rhs, functions, bpatches, global_vars, vars, NULL))
 						return 1;
 					switch(node->expr.bin_op.type) {
 						case NODE_EXPR_SUM:
@@ -161,10 +162,10 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 					break;
 				case NODE_EXPR_FUN_CALL:
 					for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
-						if(compile_recur(instructions, node->expr.fun_call.args.data[i], functions, bpatches, global_vars, vars, NULL))
+						if(compile_recur(ctx, instructions, node->expr.fun_call.args.data[i], functions, bpatches, global_vars, vars, NULL))
 						return 1;
 
-					vector_aappend(bpatches, ((BackPatch){ node->expr.fun_call.identifier, instructions->size }));
+					vector_aappend(bpatches, ((BackPatch){ node->expr.fun_call.identifier, instructions->size, node->line }));
 					vector_aappend(instructions, ((Instruction){ INST_CALL, 0 }));
 					break;
 				case NODE_EXPR_VAR_LOOKUP:
@@ -180,13 +181,17 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 							vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
 							return 0;
 						}
+					if(ctx->print_errors)
+						printf("%s:%d: error: Undeclared identifier \"%s\"\n",
+							ctx->filename, node->line,
+							node->expr.var_lookup.identifier);
 					return 1;
 				default:
 					assert(0);
 			}
 			break;
 		case NODE_RET_STATEMENT:
-			if(compile_recur(instructions, node->ret.expr, functions, bpatches, global_vars, vars, NULL))
+			if(compile_recur(ctx, instructions, node->ret.expr, functions, bpatches, global_vars, vars, NULL))
 				return 1;
 			vector_aappend(instructions, ((Instruction){ INST_RET, 0 }));
 			break;
@@ -204,7 +209,7 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 
 				merge_or_null = &merge;
 			}
-			if(compile_recur(instructions, node->fun.body, functions, bpatches, global_vars, vars, merge_or_null)) {
+			if(compile_recur(ctx, instructions, node->fun.body, functions, bpatches, global_vars, vars, merge_or_null)) {
 				if(node->fun.arguments.size)
 					vector_deinit(merge_or_null);
 				return 1;
@@ -216,7 +221,7 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 		case NODE_VAR_STATEMENT: {
 			if(is_a_redecl(node->var.identifier, global_vars, vars))
 				return 1;
-			if(compile_recur(instructions, node->var.expr, functions, bpatches, global_vars, vars, NULL))
+			if(compile_recur(ctx, instructions, node->var.expr, functions, bpatches, global_vars, vars, NULL))
 				return 1;
 			int64_t index = is_global ? global_vars->size : vars->size;
 			vector_aappend(is_global ? global_vars : vars, ((Variable){ node->var.identifier, index }));
@@ -229,7 +234,7 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 	return 0;
 }
 
-int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
+int ast_compile(Silk_Ctx* ctx, Vector_Instruction* instructions, ASTNode* node) {
 	int ret = 0;
 
 	Vector_FunctionCtx functions;
@@ -247,7 +252,7 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 			vector_aappend(&functions, ((FunctionCtx){ node->scope.nodes[i], 0, 0 }));
 			continue;
 		}
-		if(compile_recur(instructions, node->scope.nodes[i], &functions, &bpatches, &global_vars, NULL, NULL)) {
+		if(compile_recur(ctx, instructions, node->scope.nodes[i], &functions, &bpatches, &global_vars, NULL, NULL)) {
 			ret = 1;
 			goto quit;
 		}
@@ -258,7 +263,7 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 	for(size_t i = 0; i < functions.size; ++i) {
 		Vector_Variable scope_vars;
 		vector_Variable_ainit(&scope_vars, 64);
-		if(compile_recur(instructions, functions.data[i].node, &functions, &bpatches, &global_vars, &scope_vars, NULL)) {
+		if(compile_recur(ctx, instructions, functions.data[i].node, &functions, &bpatches, &global_vars, &scope_vars, NULL)) {
 			vector_deinit(&scope_vars);
 			ret = 1;
 			goto quit;
@@ -267,8 +272,16 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 	}
 
 	for(size_t i = 0; i < bpatches.size; ++i) {
-		FunctionCtx* ctx = lookup_fun_ctx_by_name(&functions, bpatches.data[i].identifier);
-		instructions->data[bpatches.data[i].code_pos].val = ctx->start_addr;
+		FunctionCtx* fun_ctx = lookup_fun_ctx_by_name(&functions, bpatches.data[i].identifier);
+		if(!fun_ctx) {
+			if(ctx->print_errors)
+				printf("%s:%d: error: Undeclared identifier \"%s\"\n",
+				ctx->filename, bpatches.data[i].line,
+				bpatches.data[i].identifier);
+			ret = 1;
+			goto quit;
+		}
+		instructions->data[bpatches.data[i].code_pos].val = fun_ctx->start_addr;
 	}
 
 quit:

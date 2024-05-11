@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <silk.h>
+
 #include "instruction.h"
 #include "vector.h"
 
@@ -34,6 +36,7 @@ VECTOR_DEFINE(ASTNode_ptr_t)
 
 struct ASTNode {
 	ASTNodeType type;
+	int line;
 	union {
 		struct {
 			size_t n_nodes;
@@ -97,7 +100,7 @@ ASTNode* ast_create_node(ASTNode node);
 
 void ast_destroy(ASTNode* node);
 
-int ast_compile(Vector_Instruction* instructions, ASTNode* node);
+int ast_compile(Silk_Ctx* ctx, Vector_Instruction* instructions, ASTNode* node);
 
 const char* ast_node_type_to_str(ASTNodeType node);
 void ast_print_node(ASTNode* root, int indent);
