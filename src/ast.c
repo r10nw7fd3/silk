@@ -52,24 +52,28 @@ void ast_destroy(ASTNode* node) {
 			ast_destroy(node->ret.expr);
 			break;
 		case NODE_EXPR:
-			if(node->expr.type == NODE_EXPR_INT_LIT) {
+			switch(node->expr.type) {
+				case NODE_EXPR_INT_LIT:
+					break;
+				case NODE_EXPR_STR_LIT:
+					free(node->expr.str_lit.str);
+					break;
+				case NODE_EXPR_BIN_OP:
+					ast_destroy(node->expr.bin_op.lhs);
+					ast_destroy(node->expr.bin_op.rhs);
+					break;
+				case NODE_EXPR_VAR_LOOKUP:
+					free(node->expr.var_lookup.identifier);
+					break;
+				case NODE_EXPR_FUN_CALL:
+					for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
+						ast_destroy(node->expr.fun_call.args.data[i]);
+					vector_deinit(&node->expr.fun_call.args);
+					free(node->expr.fun_call.identifier);
+					break;
+				default:
+					assert(0);
 			}
-			else if(node->expr.type == NODE_EXPR_STR_LIT)
-				free(node->expr.str_lit.str);
-			else if(node->expr.type == NODE_EXPR_BIN_OP) {
-				ast_destroy(node->expr.bin_op.lhs);
-				ast_destroy(node->expr.bin_op.rhs);
-			}
-			else if(node->expr.type == NODE_EXPR_VAR_LOOKUP)
-				free(node->expr.var_lookup.identifier);
-			else if(node->expr.type == NODE_EXPR_FUN_CALL) {
-				for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
-					ast_destroy(node->expr.fun_call.args.data[i]);
-				vector_deinit(&node->expr.fun_call.args);
-				free(node->expr.fun_call.identifier);
-			}
-			else
-				assert(0);
 			break;
 		case NODE_VAR_STATEMENT:
 			free(node->var.identifier);
@@ -129,56 +133,57 @@ static int compile_recur(Vector_Instruction* instructions, ASTNode* node,
 		}
 			break;
 		case NODE_EXPR:
-			if(node->expr.type == NODE_EXPR_INT_LIT)
-				vector_aappend(instructions, ((Instruction){ INST_PUSH, node->expr.int_lit.num }));
-			else if(node->expr.type == NODE_EXPR_BIN_OP) {
-				if(compile_recur(instructions, node->expr.bin_op.lhs, functions, bpatches, global_vars, vars, NULL))
-					return 1;
-				if(compile_recur(instructions, node->expr.bin_op.rhs, functions, bpatches, global_vars, vars, NULL))
-					return 1;
-				switch(node->expr.bin_op.type) {
-					case NODE_EXPR_SUM:
-						vector_aappend(instructions, ((Instruction){ INST_SUM, 0 }));
-						break;
-					case NODE_EXPR_SUB:
-						vector_aappend(instructions, ((Instruction){ INST_SUB, 0 }));
-						break;
-					case NODE_EXPR_MUL:
-						vector_aappend(instructions, ((Instruction){ INST_MUL, 0 }));
-						break;
-					case NODE_EXPR_DIV:
-						vector_aappend(instructions, ((Instruction){ INST_DIV, 0 }));
-						break;
-					default:
-						assert(0);
-				}
-			}
-			else if(node->expr.type == NODE_EXPR_FUN_CALL) {
-				for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
-					if(compile_recur(instructions, node->expr.fun_call.args.data[i], functions, bpatches, global_vars, vars, NULL))
-					return 1;
-
-				vector_aappend(bpatches, ((BackPatch){ node->expr.fun_call.identifier, instructions->size }));
-				vector_aappend(instructions, ((Instruction){ INST_CALL, 0 }));
-			}
-			else if(node->expr.type == NODE_EXPR_VAR_LOOKUP) {
-				if(!is_global) {
-					for(size_t i = 0; i < vars->size; ++i)
-						if(!strcmp(node->expr.var_lookup.identifier, vars->data[i].identifier)) {
-							vector_aappend(instructions, ((Instruction){ INST_LOAD, vars->data[i].index }));
-							goto expr_out;
-						}
-				}
-				for(size_t i = 0; i < global_vars->size; ++i)
-					if(!strcmp(node->expr.var_lookup.identifier, global_vars->data[i].identifier)) {
-						vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
-						goto expr_out;
+			switch(node->expr.type) {
+				case NODE_EXPR_INT_LIT:
+					vector_aappend(instructions, ((Instruction){ INST_PUSH, node->expr.int_lit.num }));
+					break;
+				case NODE_EXPR_BIN_OP:
+					if(compile_recur(instructions, node->expr.bin_op.lhs, functions, bpatches, global_vars, vars, NULL))
+						return 1;
+					if(compile_recur(instructions, node->expr.bin_op.rhs, functions, bpatches, global_vars, vars, NULL))
+						return 1;
+					switch(node->expr.bin_op.type) {
+						case NODE_EXPR_SUM:
+							vector_aappend(instructions, ((Instruction){ INST_SUM, 0 }));
+							break;
+						case NODE_EXPR_SUB:
+							vector_aappend(instructions, ((Instruction){ INST_SUB, 0 }));
+							break;
+						case NODE_EXPR_MUL:
+							vector_aappend(instructions, ((Instruction){ INST_MUL, 0 }));
+							break;
+						case NODE_EXPR_DIV:
+							vector_aappend(instructions, ((Instruction){ INST_DIV, 0 }));
+							break;
+						default:
+							assert(0);
 					}
-				return 1;
+					break;
+				case NODE_EXPR_FUN_CALL:
+					for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
+						if(compile_recur(instructions, node->expr.fun_call.args.data[i], functions, bpatches, global_vars, vars, NULL))
+						return 1;
+
+					vector_aappend(bpatches, ((BackPatch){ node->expr.fun_call.identifier, instructions->size }));
+					vector_aappend(instructions, ((Instruction){ INST_CALL, 0 }));
+					break;
+				case NODE_EXPR_VAR_LOOKUP:
+					if(!is_global) {
+						for(size_t i = 0; i < vars->size; ++i)
+							if(!strcmp(node->expr.var_lookup.identifier, vars->data[i].identifier)) {
+								vector_aappend(instructions, ((Instruction){ INST_LOAD, vars->data[i].index }));
+								return 0;
+							}
+					}
+					for(size_t i = 0; i < global_vars->size; ++i)
+						if(!strcmp(node->expr.var_lookup.identifier, global_vars->data[i].identifier)) {
+							vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
+							return 0;
+						}
+					return 1;
+				default:
+					assert(0);
 			}
-			else
-				assert(0);
-expr_out:
 			break;
 		case NODE_RET_STATEMENT:
 			if(compile_recur(instructions, node->ret.expr, functions, bpatches, global_vars, vars, NULL))
@@ -254,7 +259,6 @@ int ast_compile(Vector_Instruction* instructions, ASTNode* node) {
 		Vector_Variable scope_vars;
 		vector_Variable_ainit(&scope_vars, 64);
 		if(compile_recur(instructions, functions.data[i].node, &functions, &bpatches, &global_vars, &scope_vars, NULL)) {
-			printf("Failed to compile %s\n", functions.data[i].node->fun.identifier);
 			vector_deinit(&scope_vars);
 			ret = 1;
 			goto quit;
@@ -277,7 +281,7 @@ quit:
 
 const char* ast_node_type_to_str(ASTNodeType type) {
 	switch(type) {
-#define ENUMERATOR(typ3) case typ3: return #typ3 + 5;
+#define ENUMERATOR(typ3) case typ3: return &#typ3[5];
 		FOR_EACH_NODE(ENUMERATOR)
 		default:
 			return "(invalid node)";
@@ -318,24 +322,29 @@ void ast_print_node(ASTNode* node, int indent) {
 			ast_print_node(node->ret.expr, indent + 1);
 			break;
 		case NODE_EXPR:
-			if(node->expr.type == NODE_EXPR_INT_LIT)
-				printf("%ld\n", node->expr.int_lit.num);
-			else if(node->expr.type == NODE_EXPR_STR_LIT)
-				printf("\"%s\"\n", node->expr.str_lit.str);
-			else if(node->expr.type == NODE_EXPR_BIN_OP) {
-				printf("%c\n", node->expr.bin_op.type);
-				ast_print_node(node->expr.bin_op.lhs, indent + 1);
-				ast_print_node(node->expr.bin_op.rhs, indent + 1);
+			switch(node->expr.type) {
+				case NODE_EXPR_INT_LIT:
+					printf("%ld\n", node->expr.int_lit.num);
+					break;
+				case NODE_EXPR_STR_LIT:
+					printf("\"%s\"\n", node->expr.str_lit.str);
+					break;
+				case NODE_EXPR_BIN_OP:
+					printf("%c\n", node->expr.bin_op.type);
+					ast_print_node(node->expr.bin_op.lhs, indent + 1);
+					ast_print_node(node->expr.bin_op.rhs, indent + 1);
+					break;
+				case NODE_EXPR_VAR_LOOKUP:
+					printf("%s\n", node->expr.var_lookup.identifier);
+					break;
+				case NODE_EXPR_FUN_CALL:
+					printf("%s()\n", node->expr.fun_call.identifier);
+					for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
+						ast_print_node(node->expr.fun_call.args.data[i], indent + 1);
+					break;
+				default:
+					assert(0);
 			}
-			else if(node->expr.type == NODE_EXPR_VAR_LOOKUP)
-				printf("%s\n", node->expr.var_lookup.identifier);
-			else if(node->expr.type == NODE_EXPR_FUN_CALL) {
-				printf("%s()\n", node->expr.fun_call.identifier);
-				for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
-					ast_print_node(node->expr.fun_call.args.data[i], indent + 1);
-			}
-			else
-				assert(0);
 			break;
 		case NODE_VAR_STATEMENT:
 			puts(node->var.identifier);

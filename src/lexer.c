@@ -128,7 +128,7 @@ ret:
 
 const char* lexer_token_type_to_str(TokenType type) {
 	switch(type) {
-#define ENUMERATOR(tok) case tok: return #tok + 6;
+#define ENUMERATOR(tok) case tok: return &#tok[6];
 		FOR_EACH_TOKEN(ENUMERATOR)
 		default:
 			return "(invalid token)";
@@ -153,5 +153,6 @@ void lexer_destroy_token(Token* tok) {
 			free(tok->data);
 			tok->data = NULL;
 		default:
+			break;
 	}
 }
