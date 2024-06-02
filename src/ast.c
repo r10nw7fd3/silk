@@ -198,6 +198,7 @@ static int compile_recur(Silk_Ctx* ctx, Vector_Instruction* instructions, ASTNod
 						for(size_t i = 0; i < vars->size; ++i)
 							if(!strcmp(node->expr.var_assignment.identifier, vars->data[i].identifier)) {
 								vector_aappend(instructions, ((Instruction){ INST_STORE, vars->data[i].index }));
+								vector_aappend(instructions, ((Instruction){ INST_LOAD, vars->data[i].index }));
 								return 0;
 							}
 					}
@@ -205,6 +206,7 @@ static int compile_recur(Silk_Ctx* ctx, Vector_Instruction* instructions, ASTNod
 					for(size_t i = 0; i < global_vars->size; ++i)
 						if(!strcmp(node->expr.var_assignment.identifier, global_vars->data[i].identifier)) {
 							vector_aappend(instructions, ((Instruction){ INST_STORE_GLOBAL, global_vars->data[i].index }));
+							vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
 							return 0;
 						}
 					if(ctx->print_errors)
