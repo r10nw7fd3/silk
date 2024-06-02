@@ -66,6 +66,10 @@ void ast_destroy(ASTNode* node) {
 				case NODE_EXPR_VAR_LOOKUP:
 					free(node->expr.var_lookup.identifier);
 					break;
+				case NODE_EXPR_VAR_REASSIGNMENT:
+					free(node->expr.var_assignment.identifier);
+					ast_destroy(node->expr.var_assignment.expr);
+					break;
 				case NODE_EXPR_FUN_CALL:
 					for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
 						ast_destroy(node->expr.fun_call.args.data[i]);
@@ -179,6 +183,28 @@ static int compile_recur(Silk_Ctx* ctx, Vector_Instruction* instructions, ASTNod
 					for(size_t i = 0; i < global_vars->size; ++i)
 						if(!strcmp(node->expr.var_lookup.identifier, global_vars->data[i].identifier)) {
 							vector_aappend(instructions, ((Instruction){ INST_LOAD_GLOBAL, global_vars->data[i].index }));
+							return 0;
+						}
+					if(ctx->print_errors)
+						printf("%s:%d: error: Undeclared identifier \"%s\"\n",
+							ctx->filename, node->line,
+							node->expr.var_lookup.identifier);
+					return 1;
+				case NODE_EXPR_VAR_REASSIGNMENT:
+					if(compile_recur(ctx, instructions, node->expr.var_assignment.expr, functions, bpatches, global_vars, vars, NULL))
+						return 1;
+
+					if(!is_global) {
+						for(size_t i = 0; i < vars->size; ++i)
+							if(!strcmp(node->expr.var_assignment.identifier, vars->data[i].identifier)) {
+								vector_aappend(instructions, ((Instruction){ INST_STORE, vars->data[i].index }));
+								return 0;
+							}
+					}
+
+					for(size_t i = 0; i < global_vars->size; ++i)
+						if(!strcmp(node->expr.var_assignment.identifier, global_vars->data[i].identifier)) {
+							vector_aappend(instructions, ((Instruction){ INST_STORE_GLOBAL, global_vars->data[i].index }));
 							return 0;
 						}
 					if(ctx->print_errors)
@@ -350,6 +376,10 @@ void ast_print_node(ASTNode* node, int indent) {
 				case NODE_EXPR_VAR_LOOKUP:
 					printf("%s\n", node->expr.var_lookup.identifier);
 					break;
+				case NODE_EXPR_VAR_REASSIGNMENT:
+					printf("%s =\n", node->expr.var_assignment.identifier);
+					ast_print_node(node->expr.var_assignment.expr, indent + 1);
+					break;
 				case NODE_EXPR_FUN_CALL:
 					printf("%s()\n", node->expr.fun_call.identifier);
 					for(size_t i = 0; i < node->expr.fun_call.args.size; ++i)
@@ -360,7 +390,7 @@ void ast_print_node(ASTNode* node, int indent) {
 			}
 			break;
 		case NODE_VAR_STATEMENT:
-			puts(node->var.identifier);
+			printf("%s =\n", node->var.identifier);
 			ast_print_node(node->var.expr, indent + 1);
 			break;
 		default:

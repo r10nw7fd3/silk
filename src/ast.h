@@ -48,6 +48,7 @@ struct ASTNode {
 				NODE_EXPR_STR_LIT,
 				NODE_EXPR_BIN_OP,
 				NODE_EXPR_VAR_LOOKUP,
+				NODE_EXPR_VAR_REASSIGNMENT,
 				NODE_EXPR_FUN_CALL
 			} type;
 			union {
@@ -70,6 +71,10 @@ struct ASTNode {
 				struct {
 					char* identifier;
 				} var_lookup;
+				struct {
+					char* identifier;
+					ASTNode* expr;
+				} var_assignment;
 				struct {
 					char* identifier;
 					Vector_ASTNode_ptr_t args;

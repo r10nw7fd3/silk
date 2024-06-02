@@ -1,4 +1,5 @@
-var foo = 16 / 2;
+var foo = 8 / 2;
+foo = 16;
 bar();
 
 function multiply(val1, val2) {

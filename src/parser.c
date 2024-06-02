@@ -129,6 +129,24 @@ static ASTNode* parse_expr(Parser* parser) {
 			expr_node->expr.type = NODE_EXPR_FUN_CALL;
 			expr_node->expr.fun_call.identifier = data;
 		}
+		else if(parser->tok.type == TOKEN_EQ_SIGN) {
+			expr_node->expr.type = NODE_EXPR_VAR_REASSIGNMENT;
+			expr_node->expr.var_assignment.identifier = data;
+
+			if(lexer_next(parser->lexer, &parser->tok)) {
+				free(data);
+				free(expr_node);
+				return NULL;
+			}
+
+			ASTNode* expr = parse_expr(parser);
+			if(!expr) {
+				free(data);
+				free(expr_node);
+				return NULL;
+			}
+			expr_node->expr.var_assignment.expr = expr;
+		}
 		else {
 			expr_node->expr.type = NODE_EXPR_VAR_LOOKUP;
 			expr_node->expr.var_lookup.identifier = data;
