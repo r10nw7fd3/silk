@@ -87,6 +87,7 @@ static ASTNode* parse_expr(Parser* parser) {
 	if(lhs_type == TOKEN_IDENTIFIER) {
 		if(parser->tok.type == TOKEN_BRACKET_OPEN) {
 			if(lexer_next(parser->lexer, &parser->tok)) {
+				free(data);
 				free(expr_node);
 				return NULL;
 			}
@@ -95,7 +96,10 @@ static ASTNode* parse_expr(Parser* parser) {
 			while(parser->tok.type != TOKEN_BRACKET_CLOSE) {
 				ASTNode* arg = parse_expr(parser);
 				if(!arg) {
+					for(size_t i = 0; i < expr_node->expr.fun_call.args.size; ++i)
+						ast_destroy(expr_node->expr.fun_call.args.data[i]);
 					vector_deinit(&expr_node->expr.fun_call.args);
+					free(data);
 					free(expr_node);
 					return NULL;
 				}
@@ -103,8 +107,11 @@ static ASTNode* parse_expr(Parser* parser) {
 				vector_aappend(&expr_node->expr.fun_call.args, arg);
 
 				if(parser->tok.type == TOKEN_COMMA) {
-					if(expect(parser, TOKEN_COMMA)) {
+					if(lexer_next(parser->lexer, &parser->tok)) {
+						for(size_t i = 0; i < expr_node->expr.fun_call.args.size; ++i)
+							ast_destroy(expr_node->expr.fun_call.args.data[i]);
 						vector_deinit(&expr_node->expr.fun_call.args);
+						free(data);
 						free(expr_node);
 						return NULL;
 					}
@@ -112,7 +119,10 @@ static ASTNode* parse_expr(Parser* parser) {
 			}
 
 			if(expect(parser, TOKEN_BRACKET_CLOSE)) {
+				for(size_t i = 0; i < expr_node->expr.fun_call.args.size; ++i)
+					ast_destroy(expr_node->expr.fun_call.args.data[i]);
 				vector_deinit(&expr_node->expr.fun_call.args);
+				free(data);
 				free(expr_node);
 				return NULL;
 			}
@@ -205,8 +215,10 @@ static ASTNode* parse_var(Parser* parser) {
 	if(expect(parser, TOKEN_IDENTIFIER))
 		return NULL;
 
-	if(expect(parser, TOKEN_EQ_SIGN))
+	if(expect(parser, TOKEN_EQ_SIGN)) {
+		free(identifier);
 		return NULL;
+	}
 
 	ASTNode* expr_node = parse_expr(parser);
 	if(!expr_node) {
